@@ -1,6 +1,7 @@
-# Example 1
+# Example 3
 
-# Very simple example
+# Multiple attempts to convert a missing unit
+
 
 rm(list=ls(all.names=TRUE))
 
@@ -27,7 +28,7 @@ path_lab_thresholds <-  file.path(thisdir,"i_input","LAB_threshold.csv")
 # run the function
 
 cleaned_dataset <- CleanLabValuesDataset(dataset = dataset_lab_values, 
-                                             list_analyses = c("WEIGHT", "HEIGHT", "LAB_BILIRUBIN"),
+                                             list_analyses = c("WEIGHT", "HEIGHT"),
                                              lab_target_units = path_lab_target_units, 
                                              lab_unit_conversion = path_unit_conversion, 
                                              lab_thresholds = path_lab_thresholds
