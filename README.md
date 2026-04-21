@@ -104,7 +104,7 @@ Example of a CSV file containing this specification:
 
 | concept_id           | datasource | unit_origin | unit_target | multiplication_factor_from_origin_to_target | inverse_conversion | assumed_unit_if_missing_or_other | condition_on_values | next_attempt |
 |----------------------|------------|-------------|-------------|--------------------------------------------:|-------------------:|----------------------------------|---------------------|-------------:|
-| LAB_BILIRUBIN        |            | umol/L      | mg/dL       | 0.0585                                      | 17.0940            |                                  |                     | 99           |
+| LAB_BILIRUBIN        |            | mg/dL       | umol/L      | 17.0940                                     |  0.0585            |                                  |                     | 99           |
 | LAB_URINE_CREATININE | DS_A       | MISSING     | g/dL        | 11.312                                      |                    | mmol/L                           | >= 1000             | 99           |
 | LAB_URINE_CREATININE | DS_A       | MISSING     | g/dL        | 0.011309658                                 |                    | umol/L                           | < 1000              | 99           |
 | WEIGHT               |            | cm          | m           | 0.01                                        | 100                |                                  |                     | 99           |
@@ -142,12 +142,14 @@ Example:
 
 ## Output
 
-During cleaning, the program creates the following variables:
+During cleaning, the program renames 'value' as 'value_origin' and 'unit' as 'unit_origin', then leaves all existing variables and adds the following variables:
 
+ 
 - `included`: whether the value is considered valid after conversion:
   - `1`: included in the next steps;
   - `0`: discarded from the next steps.
 - `value`: final value after conversion, missing if `included == 0`.
+- `unit_target`: the target unit
 - `conversion`: type of conversion from origin value to final value:
   - `0`: no conversion;
   - `1`: conversion from non-missing unit;
