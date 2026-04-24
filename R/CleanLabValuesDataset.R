@@ -29,11 +29,10 @@
 #'  ...
 #' @examples
 #' # Example usage with Example 1
+if (!require("data.table")) install.packages("data.table")
 library(data.table)
-
 # Source all modular R scripts so clean_lab_main and dependencies are available
 source("R/check_metadata.R")
-source("R/is_valid_dt_condition.R")
 source("R/fill_missing_unit.R")
 source("R/convert_unit.R")
 source("R/mo_convert.R")
@@ -68,9 +67,6 @@ source("R/clean_lab_main.R")
 #
 
 CleanLabValuesDataset <- function(dataset, list_analyses = c(), lab_target_units, lab_unit_conversion, lab_thresholds, datasource = "") {
-  if (!require("data.table")) install.packages("data.table")
-  library(data.table)
-
   ##############################
   # dataset of lab values
 

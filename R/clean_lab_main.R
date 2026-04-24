@@ -57,18 +57,27 @@ clean_lab_main <- function(dataset, list_analyses = c(), lab_target_units, lab_u
     }
     # Step 4: mo_convert
     dt_cid <- mo_convert(dt_cid, meta_cid)
-    # Step 5: Output columns
+    # Step 5: Apply thresholds (after conversion)
+    meta_thresholds_cid <- meta_thresholds[concept_id == cid]
+    dt_cid <- apply_thresholds(dt_cid, meta_thresholds_cid, target_unit)
     # conversion: 0 = no conversion, 1 = from nonmissing unit, 2 = from OTHER, 3 = from MISSING
     unit_pool <- unique(na.omit(meta_cid$unit_origin))
+    # Use unit_origin for conversion logic, handle NA/empty as in original
     dt_cid[, conversion := fifelse(
-      (!is.na(unit_matched) & !is.na(unit_filled) & unit_filled == target_unit_cid), 0,
+      # 0: unit_origin == target_unit | (is.na(unit_matched) & (is.na(target_unit) | target_unit == "NA")) & !is.na(value_origin)
+      (!is.na(unit_origin) & unit_origin == target_unit_cid) |
+        (is.na(unit_matched) & (is.na(target_unit_cid) | target_unit_cid == "NA") & !is.na(value_origin)), 0,
       fifelse(
-        !is.na(unit_filled) & unit_filled %in% unit_pool & unit_filled != target_unit_cid, 1,
-        fifelse(!is.na(unit_filled) & !unit_filled %in% unit_pool & unit_filled != target_unit_cid, 2, 3)
+        # 1: !is.na(unit_origin) & !is.na(unit_matched) & unit_origin != target_unit & unit_origin %in% unit_pool
+        !is.na(unit_origin) & !is.na(unit_matched) & unit_origin != target_unit_cid & unit_origin %in% unit_pool, 1,
+        fifelse(
+          # 2: !is.na(unit_origin) & !is.na(unit_matched) & unit_origin != target_unit & !unit_origin %in% unit_pool
+          !is.na(unit_origin) & !is.na(unit_matched) & unit_origin != target_unit_cid & !unit_origin %in% unit_pool, 2,
+          3
+        )
       )
     )]
-    # included: 1 if value_in_range & !is.na(value), else 0
-    dt_cid[, included := as.integer(value_in_range & !is.na(value))]
+    # included: set by apply_thresholds only, do not overwrite here
     # value: value_converted if included==1, else NA
     dt_cid[, value_final := fifelse(included == 1, value_converted, NA_real_)]
     # rule_applied logic
@@ -96,8 +105,12 @@ clean_lab_main <- function(dataset, list_analyses = c(), lab_target_units, lab_u
     dt_cid[, unit_origin := unit]
     dt_cid[, unit_target := target_unit_cid]
     dt_cid[, value := round(value_final, 2)]
-    # Select and order columns
-    out <- dt_cid[, .(person_id, concept_id, value_origin, unit_origin, included, value, unit_target, conversion, rule_applied)]
+    # Select and order columns, include 'date' if present
+    output_cols <- c("person_id", "concept_id", "value_origin", "unit_origin", "included", "value", "unit_target", "conversion", "rule_applied")
+    if ("date" %in% names(dt_cid)) {
+      output_cols <- c(output_cols, "date")
+    }
+    out <- dt_cid[, ..output_cols]
     result_list[[cid]] <- out
   }
   result <- data.table::rbindlist(result_list, fill = TRUE)

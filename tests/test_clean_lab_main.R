@@ -29,6 +29,11 @@ for (ex in examples) {
   gt_file <- file.path(gt_dir, "dataset_cleaned_lab_values.csv")
   if (file.exists(gt_file)) {
     gt <- fread(gt_file)
+    # Order both by person_id, date, concept_id for fair comparison
+    if ("date" %in% names(cleaned) && "date" %in% names(gt)) {
+      setorder(cleaned, person_id, date, concept_id)
+      setorder(gt, person_id, date, concept_id)
+    }
     # Compare
     res <- all.equal(cleaned, gt, check.attributes = FALSE)
     print(res)
