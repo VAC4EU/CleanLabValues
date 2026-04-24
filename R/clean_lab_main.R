@@ -20,6 +20,9 @@ clean_lab_main <- function(dataset, list_analyses = c(), lab_target_units, lab_u
 
   # Filter dataset to only relevant analyses
   dt <- data.table::copy(dataset[concept_id %in% list_analyses])
+  # Preserve original value and unit columns for later use
+  dt[, value_origin := value]
+  dt[, unit_origin := unit]
 
   # Step 1: Fill missing units
   dt <- fill_missing_unit(dt, meta_unit_conv, target_unit)
@@ -57,6 +60,9 @@ clean_lab_main <- function(dataset, list_analyses = c(), lab_target_units, lab_u
     }
     # Step 4: mo_convert
     dt_cid <- mo_convert(dt_cid, meta_cid)
+    # Prepare output columns needed for conversion logic
+    dt_cid[, value_origin := value]
+    dt_cid[, unit_origin := unit]
     # Step 5: Apply thresholds (after conversion)
     meta_thresholds_cid <- meta_thresholds[concept_id == cid]
     dt_cid <- apply_thresholds(dt_cid, meta_thresholds_cid, target_unit)
@@ -64,16 +70,20 @@ clean_lab_main <- function(dataset, list_analyses = c(), lab_target_units, lab_u
     unit_pool <- unique(na.omit(meta_cid$unit_origin))
     # Use unit_origin for conversion logic, handle NA/empty as in original
     dt_cid[, conversion := fifelse(
-      # 0: unit_origin == target_unit | (is.na(unit_matched) & (is.na(target_unit) | target_unit == "NA")) & !is.na(value_origin)
       (!is.na(unit_origin) & unit_origin == target_unit_cid) |
-        (is.na(unit_matched) & (is.na(target_unit_cid) | target_unit_cid == "NA") & !is.na(value_origin)), 0,
+        (is.na(unit_matched) & (is.na(target_unit_cid) | target_unit_cid == "NA") & !is.na(value_origin)),
+      0,
       fifelse(
-        # 1: !is.na(unit_origin) & !is.na(unit_matched) & unit_origin != target_unit & unit_origin %in% unit_pool
-        !is.na(unit_origin) & !is.na(unit_matched) & unit_origin != target_unit_cid & unit_origin %in% unit_pool, 1,
+        !is.na(unit_origin) & unit_origin != "" & !is.na(unit_matched) & unit_origin != target_unit_cid & unit_origin %in% unit_pool,
+        1,
         fifelse(
-          # 2: !is.na(unit_origin) & !is.na(unit_matched) & unit_origin != target_unit & !unit_origin %in% unit_pool
-          !is.na(unit_origin) & !is.na(unit_matched) & unit_origin != target_unit_cid & !unit_origin %in% unit_pool, 2,
-          3
+          is.na(unit_origin) | unit_origin == "",
+          3,
+          fifelse(
+            !is.na(unit_origin) & !is.na(unit_matched) & unit_origin != target_unit_cid & !unit_origin %in% unit_pool,
+            2,
+            3
+          )
         )
       )
     )]
@@ -86,14 +96,17 @@ clean_lab_main <- function(dataset, list_analyses = c(), lab_target_units, lab_u
       fifelse(
         conversion == 0 & included == 0, 90,
         fifelse(
-          conversion > 0 & next_attempt %in% c(0, 1, 99) & included == 1, 1,
+          conversion == 3 & included == 0, 90,
           fifelse(
-            conversion > 0 & next_attempt %in% c(0, 1, 99) & included == 0, 91,
+            conversion > 0 & next_attempt %in% c(0, 1, 99) & included == 1, 1,
             fifelse(
-              conversion > 0 & next_attempt == 2 & included == 1, 2,
+              conversion > 0 & next_attempt %in% c(0, 1, 99) & included == 0, 91,
               fifelse(
-                conversion > 0 & next_attempt == 2 & included == 0, 92,
-                fifelse(included == 0 & is.na(value), 99, NA_integer_)
+                conversion > 0 & next_attempt == 2 & included == 1, 2,
+                fifelse(
+                  conversion > 0 & next_attempt == 2 & included == 0, 92,
+                  fifelse(included == 0 & is.na(value), 99, NA_integer_)
+                )
               )
             )
           )
