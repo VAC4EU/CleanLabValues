@@ -30,7 +30,8 @@ clean_lab_main <- function(dataset, list_analyses = c(), lab_target_units, lab_u
   # Prepare result list
   result_list <- list()
   for (cid in unique(dt$concept_id)) {
-    dt_cid <- dt[concept_id == cid]
+    # Preserve all columns from the original input for thresholding (e.g., age)
+    dt_cid <- dt[concept_id == cid, .SD, .SDcols = names(dt)]
     meta_cid <- meta_unit_conv[concept_id == cid]
     target_unit_cid <- target_unit[[cid]]
     # If no metadata, skip
@@ -118,11 +119,9 @@ clean_lab_main <- function(dataset, list_analyses = c(), lab_target_units, lab_u
     dt_cid[, unit_origin := unit]
     dt_cid[, unit_target := target_unit_cid]
     dt_cid[, value := round(value_final, 2)]
-    # Select and order columns, include 'date' if present
-    output_cols <- c("person_id", "concept_id", "value_origin", "unit_origin", "included", "value", "unit_target", "conversion", "rule_applied")
-    if ("date" %in% names(dt_cid)) {
-      output_cols <- c(output_cols, "date")
-    }
+    # Select and order columns, include all original columns (e.g., age, date) if present
+    orig_cols <- setdiff(names(dt_cid), c("value_origin", "unit_origin", "included", "value", "unit_target", "conversion", "rule_applied"))
+    output_cols <- c(orig_cols, "value_origin", "unit_origin", "included", "value", "unit_target", "conversion", "rule_applied")
     out <- dt_cid[, ..output_cols]
     result_list[[cid]] <- out
   }

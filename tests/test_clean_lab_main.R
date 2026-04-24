@@ -33,8 +33,11 @@ for (ex in examples) {
     setorder(cleaned, person_id, date, concept_id)
     setorder(gt, person_id, date, concept_id)
 
-    # Compare
-    res <- all.equal(cleaned, gt, check.attributes = FALSE)
+    # Compare only columns present in ground truth
+    common_cols <- intersect(names(cleaned), names(gt))
+    cleaned_sub <- cleaned[, ..common_cols]
+    gt_sub <- gt[, ..common_cols]
+    res <- all.equal(cleaned_sub, gt_sub, check.attributes = FALSE)
     print(res)
     if (isTRUE(res)) {
       cat("Test PASSED for", ex, "\n")
