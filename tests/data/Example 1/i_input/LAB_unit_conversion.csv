@@ -1,5 +1,5 @@
 concept_id,datasource,unit_origin,unit_target,multiplication_factor_from_origin_to_target,conversion_rate,condition_on_value,assumed_unit_if_missing,next_attempt
-LAB_BILIRUBIN,,umol/L,mg/dL,17.1,0.0585,,,0
-WEIGHT,,g,kg,0.001,1000,,,0
-HEIGHT,,cm,m,0.01,100,,,0
+LAB_BILIRUBIN,,umol/L,mg/dL,17.1,0.0585,,umol/L,0
+WEIGHT,,g,kg,0.001,1000,,kg,0
+HEIGHT,,cm,m,0.01,100,,m,0
 LAB_BILIRUBIN,,MISSING,mg/dL,17.1,0.0585,,umol/L,0

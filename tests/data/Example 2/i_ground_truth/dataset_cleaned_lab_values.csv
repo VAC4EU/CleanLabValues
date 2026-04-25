@@ -1,3 +1,3 @@
-person_id,concept_id,value_origin,unit_origin,age,included,value,unit_target,conversion,rule_applied,date
-P01,WEIGHT,50,kg,1,0,,kg,0,90,2022-01-01
-P02,WEIGHT,50,kg,20,1,50,kg,0,0,2022-01-02
+person_id,concept_id,value_origin,unit_origin,included,value,unit_target,conversion,rule_applied,age
+P01,WEIGHT,50,kg,0,,kg,0,90,1
+P02,WEIGHT,50,kg,1,50,kg,0,0,20

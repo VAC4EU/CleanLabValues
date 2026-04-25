@@ -29,16 +29,11 @@ for (ex in examples) {
   gt_file <- file.path(gt_dir, "dataset_cleaned_lab_values.csv")
   if (file.exists(gt_file)) {
     gt <- fread(gt_file)
-    # Order both by person_id, date, concept_id for fair comparison
-    setorder(cleaned, person_id, date, concept_id)
-    setorder(gt, person_id, date, concept_id)
+    # Order both by person_id and concept_id for fair comparison (no date column)
+    setorder(cleaned, person_id, concept_id)
+    setorder(gt, person_id, concept_id)
 
-    # Compare only columns present in ground truth
-    common_cols <- intersect(names(cleaned), names(gt))
-    cleaned_sub <- cleaned[, ..common_cols]
-    gt_sub <- gt[, ..common_cols]
-    res <- all.equal(cleaned_sub, gt_sub, check.attributes = FALSE)
-    print(res)
+    res <- all.equal(cleaned, gt, check.attributes = FALSE)
     if (isTRUE(res)) {
       cat("Test PASSED for", ex, "\n")
     } else {
