@@ -2,7 +2,9 @@
 # This script will run clean_lab_main on all Example datasets and compare output to ground truth
 
 library(data.table)
-source("R/CleanLabValuesDataset.R")
+# Load modular code
+source("R/load_dependencies.R")
+load_cleanlab()
 
 examples <- c("Example 1", "Example 2", "Example 3")
 base_path <- "tests/data"
@@ -38,6 +40,8 @@ for (ex in examples) {
       cat("Test PASSED for", ex, "\n")
     } else {
       cat("Test FAILED for", ex, "\n")
+      # print differences for debugging
+      print(res)
     }
   } else {
     cat("Ground truth file missing for", ex, "\n")

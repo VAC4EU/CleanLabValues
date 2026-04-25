@@ -27,38 +27,6 @@
 #' @details
 #'
 #'  ...
-#' @examples
-#' # Example usage with Example 1
-if (!require("data.table")) install.packages("data.table")
-library(data.table)
-# Source all modular R scripts so clean_lab_main and dependencies are available
-source("R/check_metadata.R")
-source("R/fill_missing_unit.R")
-source("R/convert_unit.R")
-source("R/mo_convert.R")
-source("R/apply_thresholds.R")
-source("R/clean_lab_main.R")
-#'
-#' # Load input files
-#' dataset_lab_values <- fread("tests/data/Example 1/i_input/dataset_lab_values.csv")
-#' path_lab_target_units <- "tests/data/Example 1/i_input/LAB_target_units.csv"
-#' path_unit_conversion <- "tests/data/Example 1/i_input/LAB_unit_conversion.csv"
-#' path_lab_thresholds <- "tests/data/Example 1/i_input/LAB_threshold.csv"
-#'
-#' # Run metadata checks
-#' check_dataset_model(dataset_lab_values)
-#' check_lab_target_units(path_lab_target_units)
-#' check_lab_unit_conversion(path_unit_conversion, "", c("WEIGHT", "HEIGHT", "LAB_BILIRUBIN"), list())
-#' check_lab_thresholds(path_lab_thresholds, dataset_lab_values)
-#'
-#' # Run main cleaning function
-#' cleaned <- clean_lab_main(
-#'   dataset = dataset_lab_values,
-#'   list_analyses = c("WEIGHT", "HEIGHT", "LAB_BILIRUBIN"),
-#'   lab_target_units = path_lab_target_units,
-#'   lab_unit_conversion = path_unit_conversion,
-#'   lab_thresholds = path_lab_thresholds
-#' )
 #' @seealso
 #'
 #' ...
@@ -67,68 +35,36 @@ source("R/clean_lab_main.R")
 #
 
 CleanLabValuesDataset <- function(dataset, list_analyses = c(), lab_target_units, lab_unit_conversion, lab_thresholds, datasource = "") {
-  ##############################
-  # dataset of lab values
-
-  # check data model
-
-  for (varname in c("concept_id", "value", "unit")) {
-    if (!(varname %in% names(dataset))) {
-      errmess <- paste("The file 'dataset' should include the variable", varname, "in its data model")
-      stop(errmess)
-    }
+  # Ensure check functions are available; source minimal checks if needed
+  if (!exists("check_dataset_model")) {
+    if (file.exists("R/check_metadata.R")) source("R/check_metadata.R") else stop("Missing R/check_metadata.R")
   }
 
+  # Basic validation of dataset and metadata files
+  if (!is.data.frame(dataset) && !data.table::is.data.table(dataset)) stop("`dataset` must be a data.frame or data.table")
+  for (varname in c("concept_id", "value", "unit")) if (!(varname %in% names(dataset))) stop(paste("dataset must contain column", varname))
+  for (path in c(lab_target_units, lab_unit_conversion, lab_thresholds)) if (!file.exists(path)) stop(paste("Missing metadata file:", path))
 
-  ##############################
-  # load lab unit
+  # Run metadata checks (these functions also return the parsed metadata invisibly)
+  check_dataset_model(dataset)
+  meta_target_units <- check_lab_target_units(lab_target_units)
 
-  if (!(file.exists(lab_target_units))) {
-    errmess <- paste("The file", lab_target_units, "cannot be found")
-    stop(errmess)
-  }
+  # If list_analyses is empty, derive from target units
+  if (length(list_analyses) == 0) list_analyses <- unique(meta_target_units$concept_id)
 
-  METADATA_lab_target_units <- fread(lab_target_units)
+  # Build target unit mapping required by check_lab_unit_conversion
+  target_unit <- setNames(meta_target_units$unit_target, meta_target_units$concept_id)
+  check_lab_unit_conversion(lab_unit_conversion, datasource, list_analyses, target_unit)
+  check_lab_thresholds(lab_thresholds, dataset)
 
-  # if a lab measurement has no unit this is "NA"
-
-  METADATA_lab_target_units[is.na(unit_target), unit_target := "NA"]
-
-  # check data model
-
-  if (!("concept_id" %in% names(METADATA_lab_target_units)) | !("unit_target" %in% names(METADATA_lab_target_units))) {
-    errmess <- paste("The file", lab_target_units, "should be a csv file with data model concept_id,unit_target")
-    stop(errmess)
-  }
-
-  # 1 lab_target_units - if list_analysis is empty, then all lab values are analysed
-
-  if (length(list_analyses) == 0) {
-    list_analyses <- unique(unlist(METADATA_lab_target_units[, .(concept_id)]))
-  }
-
-  # 2 lab_target_units -assign target_unit to each concepts_id of lab value
-
-  target_unit <- list()
-
-  for (variable in unique(c(list_analyses))) {
-    if (METADATA_lab_target_units[concept_id == variable, uniqueN(unit_target)] != 1) {
-      stop(paste0(
-        "Expected exactly one unit_target for concept_id ", variable, ", but found ",
-        METADATA_lab_target_units[concept_id == variable, uniqueN(unit_target)], "."
-      ))
-    }
-    target_unit[[variable]] <- trimws(unlist(METADATA_lab_target_units[concept_id == variable, .(unit_target)]))
-  }
-
-  ##############################
-  # load lab unit conversion
-
-  if (!(file.exists(lab_unit_conversion))) {
-    # Main cleaning function (logic ported from clean_lab_values.R)
-    cleaned_dataset <-
-      clean_lab_main(dataset, list_analyses, lab_target_units, lab_unit_conversion, lab_thresholds, datasource)
-  }
-
-  return(cleaned_dataset)
+  # Delegate to clean_lab_main which contains the full cleaning logic
+  res <- clean_lab_main(
+    dataset = dataset,
+    list_analyses = list_analyses,
+    lab_target_units = lab_target_units,
+    lab_unit_conversion = lab_unit_conversion,
+    lab_thresholds = lab_thresholds,
+    datasource = datasource
+  )
+  return(res)
 }

@@ -1,4 +1,11 @@
 # Main cleaning function for lab values
+#
+# Output columns appended by this pipeline (see README for full semantics):
+# - `included`: 1/0 whether the value is kept
+# - `value`: cleaned/converted value when `included == 1`, otherwise NA
+# - `unit_target`: the target unit assigned for the concept
+# - `conversion`: integer code indicating conversion origin/type (0/1/2/3)
+# - `rule_applied`: integer code indicating which rule was applied or failure reason
 clean_lab_main <- function(dataset, list_analyses = c(), lab_target_units, lab_unit_conversion, lab_thresholds, datasource = "") {
   # Ensure input is a data.table and capture original input column order
   dataset <- data.table::as.data.table(dataset)
@@ -6,10 +13,9 @@ clean_lab_main <- function(dataset, list_analyses = c(), lab_target_units, lab_u
   # add a temporary order id to preserve original row ordering; removed before return
   dataset[, .order_id := seq_len(.N)]
 
-  check_dataset_model(dataset)
-  check_lab_target_units(lab_target_units)
-  check_lab_unit_conversion(lab_unit_conversion, datasource, list_analyses, lab_target_units)
-  check_lab_thresholds(lab_thresholds, dataset)
+  # Metadata checks are expected to be performed by the top-level wrapper
+  # (CleanLabValuesDataset) which calls the `check_*` functions. Avoid
+  # duplicating checks here to keep the main pipeline focused on processing.
 
   # Load metadata
   meta_target_units <- data.table::fread(lab_target_units)
