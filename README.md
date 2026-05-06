@@ -109,8 +109,8 @@ Example of a CSV file containing this specification:
 | LAB_URINE_CREATININE | DS_A       | MISSING     | g/dL        |                                 0.011309658 |                    | umol/L                           | < 1000              |           99 |
 | WEIGHT               |            | cm          | m           |                                        0.01 |                100 |                                  |                     |           99 |
 | HEIGHT               |            | kg          | kg          |                                           1 |                  1 |                                  |                     |           99 |
-| WEIGHT               | DS_A       | MISSING     | kg          |                                           1 |                  1 |                                  | kg                  |            1 |
-| WEIGHT               | DS_A       | MISSING     | kg          |                                       0.001 |               1000 |                                  | g                   |            2 |
+| WEIGHT               | DS_A       | MISSING     | kg          |                                           1 |                  1 | kg                               |                     |            1 |
+| WEIGHT               | DS_A       | MISSING     | kg          |                                       0.001 |               1000 | kg                               |                     |            2 |
 
 ### 3. `lab_thresholds`
 
