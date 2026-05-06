@@ -22,32 +22,32 @@ Units of measurement may be more than one for the same laboratory value identifi
 Example of records to be cleaned:
 
 | person_id | concept_id    | value | unit   |
-|-----------|---------------|------:|--------|
-| P01       | LAB_BILIRUBIN | 71.0  | umol/L |
-| P01       | LAB_BILIRUBIN | 990   | mg/dL  |
-| P02       | WEIGHT        | 52.3  | kg     |
-| P03       | HEIGHT        | 181   |        |
-| P04       | WEIGHT        | 74.3  | kkg    |
+| --------- | ------------- | ----: | ------ |
+| P01       | LAB_BILIRUBIN |  71.0 | umol/L |
+| P01       | LAB_BILIRUBIN |   990 | mg/dL  |
+| P02       | WEIGHT        |  52.3 | kg     |
+| P03       | HEIGHT        |   181 |        |
+| P04       | WEIGHT        |  74.3 | kkg    |
 
 ## Arguments of the function
 
 ### Simple arguments
 
-| Argument | Description |
-|----------|-------------|
-| `dataset` | Name of a `data.table` object in memory containing a dataset of laboratory-analysis results that needs cleaning. |
-| `list_analyses` | Optional string vector containing the names of the laboratory analyses to be cleaned. If this argument is not specified, all laboratory analyses are cleaned. |
-| `datasource` | Optional string containing the name of the datasource. This can be stored in `lab_unit_conversions` to produce a datasource-specific assumption on what to do if the unit of measurement is missing. |
+| Argument        | Description                                                                                                                                                                                          |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dataset`       | Name of a `data.table` object in memory containing a dataset of laboratory-analysis results that needs cleaning.                                                                                     |
+| `list_analyses` | Optional string vector containing the names of the laboratory analyses to be cleaned. If this argument is not specified, all laboratory analyses are cleaned.                                        |
+| `datasource`    | Optional string containing the name of the datasource. This can be stored in `lab_unit_conversions` to produce a datasource-specific assumption on what to do if the unit of measurement is missing. |
 
 ### Arguments stored in CSV files
 
 The following arguments contain paths to CSV files:
 
-| Argument | Description |
-|----------|-------------|
-| `lab_target_units` | Path to a CSV file containing one record for each type of laboratory analysis in `list_analyses`, specifying the desired unit of measurement. |
-| `lab_unit_conversions` | Path to a CSV file containing the specifications to convert values in the dataset to the target unit of measurement. |
-| `lab_thresholds` | Path to a CSV file containing the specifications of which values should be considered absurd and discarded, possibly depending on other variables such as age. |
+| Argument               | Description                                                                                                                                                    |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lab_target_units`     | Path to a CSV file containing one record for each type of laboratory analysis in `list_analyses`, specifying the desired unit of measurement.                  |
+| `lab_unit_conversions` | Path to a CSV file containing the specifications to convert values in the dataset to the target unit of measurement.                                           |
+| `lab_thresholds`       | Path to a CSV file containing the specifications of which values should be considered absurd and discarded, possibly depending on other variables such as age. |
 
 ## Specification files
 
@@ -63,7 +63,7 @@ The primary unique key for this file is `concept_id`.
 Example of input target unit:
 
 | concept_id    | target_unit |
-|---------------|-------------|
+| ------------- | ----------- |
 | LAB_BILIRUBIN | umol/L      |
 | LAB_INR       | NA          |
 | WEIGHT        | kg          |
@@ -103,14 +103,14 @@ concept_id, datasource, origin_unit, condition_on_value
 Example of a CSV file containing this specification:
 
 | concept_id           | datasource | unit_origin | unit_target | multiplication_factor_from_origin_to_target | inverse_conversion | assumed_unit_if_missing_or_other | condition_on_values | next_attempt |
-|----------------------|------------|-------------|-------------|--------------------------------------------:|-------------------:|----------------------------------|---------------------|-------------:|
-| LAB_BILIRUBIN        |            | mg/dL       | umol/L      | 17.0940                                     |  0.0585            |                                  |                     | 99           |
-| LAB_URINE_CREATININE | DS_A       | MISSING     | g/dL        | 11.312                                      |                    | mmol/L                           | >= 1000             | 99           |
-| LAB_URINE_CREATININE | DS_A       | MISSING     | g/dL        | 0.011309658                                 |                    | umol/L                           | < 1000              | 99           |
-| WEIGHT               |            | cm          | m           | 0.01                                        | 100                |                                  |                     | 99           |
-| HEIGHT               |            | kg          | kg          | 1                                           | 1                  |                                  |                     | 99           |
-| WEIGHT               | DS_A       | MISSING     | kg          | 1                                           | 1                  |                                  | kg                  | 1            |
-| WEIGHT               | DS_A       | MISSING     | kg          | 0.001                                       | 1000               |                                  | g                   | 2            |
+| -------------------- | ---------- | ----------- | ----------- | ------------------------------------------: | -----------------: | -------------------------------- | ------------------- | -----------: |
+| LAB_BILIRUBIN        |            | mg/dL       | umol/L      |                                     17.0940 |             0.0585 |                                  |                     |           99 |
+| LAB_URINE_CREATININE | DS_A       | MISSING     | g/dL        |                                      11.312 |                    | mmol/L                           | >= 1000             |           99 |
+| LAB_URINE_CREATININE | DS_A       | MISSING     | g/dL        |                                 0.011309658 |                    | umol/L                           | < 1000              |           99 |
+| WEIGHT               |            | cm          | m           |                                        0.01 |                100 |                                  |                     |           99 |
+| HEIGHT               |            | kg          | kg          |                                           1 |                  1 |                                  |                     |           99 |
+| WEIGHT               | DS_A       | MISSING     | kg          |                                           1 |                  1 |                                  | kg                  |            1 |
+| WEIGHT               | DS_A       | MISSING     | kg          |                                       0.001 |               1000 |                                  | g                   |            2 |
 
 ### 3. `lab_thresholds`
 
@@ -133,12 +133,12 @@ concept_id, condition_on_variable, variable
 
 Example:
 
-| concept_id    | Min | Max | unit_target | condition_on_variable | variable |
-|---------------|----:|----:|-------------|-----------------------|----------|
-| LAB_BILIRUBIN | 0.5 | 100 | umol/L      |                       |          |
-| HEIGHT        | 1   | 2.4 | m           |                       |          |
-| WEIGHT        | 0.5 | 8   | kg          | age < 2               | age      |
-| WEIGHT        | 8   | 180 | kg          | age >= 2              | age      |
+| concept_id    |  Min |  Max | unit_target | condition_on_variable | variable |
+| ------------- | ---: | ---: | ----------- | --------------------- | -------- |
+| LAB_BILIRUBIN |  0.5 |  100 | umol/L      |                       |          |
+| HEIGHT        |    1 |  2.4 | m           |                       |          |
+| WEIGHT        |  0.5 |    8 | kg          | age < 2               | age      |
+| WEIGHT        |    8 |  180 | kg          | age >= 2              | age      |
 
 ## Output
 
@@ -163,3 +163,50 @@ During cleaning, the program renames 'value' as 'value_origin' and 'unit' as 'un
   - `91`: one conversion attempted before discarding the result;
   - `92`: more than one conversion attempted before discarding the result;
   - `99`: discarded because value is non-numeric.
+
+## Usage and validation
+
+  The top-level function `CleanLabValuesDataset()` performs the required metadata checks (`check_dataset_model`, `check_lab_target_units`, `check_lab_unit_conversion`, `check_lab_thresholds`) before running the cleaning pipeline. You can call it directly; it will validate the `dataset` and the three CSV metadata files and then run the cleaning logic.
+
+  For interactive use (to call lower-level functions or run tests), load the module files first:
+
+  ```r
+  # load modules once when developing or running interactively
+  source("R/load_dependencies.R")
+  load_cleanlab()
+  ```
+
+  Example: run cleaning with metadata files
+
+  ```r
+  cleaned <- CleanLabValuesDataset(
+    dataset = dataset_lab_values,
+    lab_target_units = "tests/data/Example 1/i_input/LAB_target_units.csv",
+    lab_unit_conversion = "tests/data/Example 1/i_input/LAB_unit_conversion.csv",
+    lab_thresholds = "tests/data/Example 1/i_input/LAB_threshold.csv"
+  )
+  ```
+
+  The function returns a `data.table` containing all original input columns (renaming `value` -> `value_origin` and `unit` -> `unit_origin`), plus the cleaning result columns: `included`, `value` (cleaned), `unit_target`, `conversion`, `rule_applied`.
+
+## Testing
+
+A simple example harness is provided in `tests/test_clean_lab_main.R` which runs the pipeline on the example datasets under `tests/data/Example 1`, `Example 2` and `Example 3` and compares the output with the ground-truth CSVs.
+
+From the project root you can run the harness directly with:
+
+```bash
+Rscript tests/test_clean_lab_main.R
+```
+
+For interactive debugging or development, load the modules and then source the test script from an R session:
+
+```r
+source("R/load_dependencies.R")
+load_cleanlab()
+source("tests/test_clean_lab_main.R")
+```
+
+Notes:
+- Ensure your working directory is the project root when running these commands.
+- The harness expects `data.table` to be installed.
