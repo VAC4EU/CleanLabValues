@@ -110,7 +110,7 @@ Example of a CSV file containing this specification:
 | WEIGHT               |            | cm          | m           |                                        0.01 |                100 |                                  |                     |           99 |
 | HEIGHT               |            | kg          | kg          |                                           1 |                  1 |                                  |                     |           99 |
 | WEIGHT               | DS_A       | MISSING     | kg          |                                           1 |                  1 | kg                               |                     |            1 |
-| WEIGHT               | DS_A       | MISSING     | kg          |                                       0.001 |               1000 | kg                               |                     |            2 |
+| WEIGHT               | DS_A       | MISSING     | kg          |                                       0.001 |               1000 | g                                |                     |            2 |
 
 ### 3. `lab_thresholds`
 
