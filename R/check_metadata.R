@@ -53,14 +53,28 @@ check_lab_unit_conversion <- function(lab_unit_conversion, datasource, list_anal
     stop(paste("The file", lab_unit_conversion, "cannot be found"))
   }
   dt <- data.table::fread(lab_unit_conversion)
-  required <- c("concept_id", "unit_origin", "unit_target", "multiplication_factor_from_origin_to_target", "conversion_rate", "condition_on_value", "assumed_unit_if_missing", "next_attempt")
+  required <- c("concept_id", "unit_origin", "unit_target", "multiplication_factor_from_origin_to_target", "condition_on_value", "assumed_unit_if_missing", "next_attempt")
   for (varname in required) {
     if (!(varname %in% names(dt))) {
       stop(paste("The file", lab_unit_conversion, "should include the variable", varname, "in its data model"))
     }
   }
+  dt[,multiplication_factor_from_origin_to_target := as.numeric(multiplication_factor_from_origin_to_target)]
+  if (nrow(dt[is.na(multiplication_factor_from_origin_to_target),]) > 0) {
+    varname <- "conversion_not_multiplication"
+    if (!(varname %in% names(dt))) {
+      nummissing_mult <- nrow(dt[is.na(multiplication_factor_from_origin_to_target),])
+      stop(paste("The file", lab_unit_conversion, "has", nummissing_mult,"record(s) whose variable multiplication_factor_from_origin_to_target is missing or nonmeric. This can only happen if the variable", varname, "is in its data model, and no record of the file can have both variables missing"))
+    }else{
+      dt[,(varname) := as.character(get(varname))]
+    nummissing_both_specifications <- nrow(dt[is.na(multiplication_factor_from_origin_to_target) & nchar(get(varname)) == 0,])
+    if (nummissing_both_specifications > 0) {
+      stop(paste("The file", lab_unit_conversion, "has", nummissing_both_specifications,"record(s) whose variables multiplication_factor_from_origin_to_target and",varname,"are both missing. No record of the file can have both variables missing. This error is also triggered if multiplication_factor_from_origin_to_target has some non-numeric values."))
+    }
+  }
+  }
   if (datasource != "" & !("datasource" %in% names(dt))) {
-    stop(paste("You specified the argument 'datasource' but the file", lab_unit_conversion, "should include the variable 'datasource' in its data model, but it does not"))
+    stop(paste("You specified the argument 'datasource' but the file", lab_unit_conversion, "should include the variable 'datasource' in its data model, while it does not"))
   }
   for (variable in unique(c(list_analyses))) {
     if (nrow(dt[concept_id == variable, .(unit_target)]) > 0) {
