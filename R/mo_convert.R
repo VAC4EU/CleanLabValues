@@ -40,11 +40,20 @@
 
 .mo_eval_attempt <- function(attempt_row, val_raw, dat, row_idx) {
   # Returns list(success=TRUE/FALSE, val_conv=?, attempted=TRUE/FALSE)
+  # factor <- suppressWarnings(as.numeric(attempt_row$multiplication_factor_from_origin_to_target))
+  # if (is.na(factor) || is.na(val_raw)) {
+  #   return(list(success = FALSE, attempted = FALSE))
+  # }
+  # val_conv <- val_raw * factor
   factor <- suppressWarnings(as.numeric(attempt_row$multiplication_factor_from_origin_to_target))
-  if (is.na(factor) || is.na(val_raw)) {
-    return(list(success = FALSE, attempted = FALSE))
+  if (!is.na(factor) ) {
+    val_conv <- val_raw * factor
+  }else{
+    expression_tp_eval <- attempt_row$conversion_not_multiplication
+    expression_tp_eval <- gsub("value", as.character(val_raw), expression_tp_eval)
+#    print(expression_tp_eval)
+    val_conv <- eval( parse( text = expression_tp_eval))
   }
-  val_conv <- val_raw * factor
   minv <- suppressWarnings(as.numeric(attempt_row$Min))
   maxv <- suppressWarnings(as.numeric(attempt_row$Max))
   cond_val_expr <- attempt_row$condition_on_value

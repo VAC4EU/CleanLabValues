@@ -1,6 +1,6 @@
 concept_id,datasource,unit_origin,unit_target,multiplication_factor_from_origin_to_target,conversion_rate,conversion_not_multiplication,condition_on_value,assumed_unit_if_missing,next_attempt
-LAB_HBA1C,,%,mmol/mol,xx,,,,,99
-LAB_HBA1C,,MISSING,mmol/mol,,,(10.93 * value) – 23.5,,,99
+LAB_HBA1C,,%,mmol/mol,1,,,,,99
+LAB_HBA1C,,MISSING,mmol/mol,,,(10.93 * value) - 23.5,,,99
 WEIGHT,,g,kg,0.001,1000,,,,99
 WEIGHT,,MISSING,kg,1,1,,,kg,1
 WEIGHT,,MISSING,kg,0.001,1000,,,g,2
