@@ -192,7 +192,7 @@ During cleaning, the program renames 'value' as 'value_origin' and 'unit' as 'un
 
 ## Testing
 
-A simple example harness is provided in `tests/test_clean_lab_main.R` which runs the pipeline on the example datasets under `tests/data/Example 1`, `Example 2` and `Example 3` and compares the output with the ground-truth CSVs.
+A simple example harness is provided in `tests/test_clean_lab_main.R` which runs the pipeline on the example datasets under `tests/data/Example 1`, `Example 2`, `Example 3` and `Example 4` and compares the output with the ground-truth CSVs.
 
 From the project root you can run the harness directly with:
 
