@@ -7,7 +7,7 @@ This function ingests instructions to clean datasets containing results from lab
 - what to do if the unit of measurement is missing;
 - which values should be considered absurd and discarded.
 
-This program enacts the specifications developed by the VAC4EU Programming Task Force of the Working Group of Methods, Statistics and Programs.
+This program enacts the specifications developed by the VAC4EU Programming Task Force of the [Working Group of Methods, Statistics and Programs](https://vac4eu.org/about/how-we-work/working-groups/methods-statistics-and-programming-working-group/).
 
 ## Input data
 
