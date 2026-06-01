@@ -211,3 +211,140 @@ source("tests/test_clean_lab_main.R")
 Notes:
 - Ensure your working directory is the project root when running these commands.
 - The harness expects `data.table` to be installed.
+
+## Deatils of the four examples
+
+The repository contains four small worked examples in `tests/data`. These examples are useful both for testing and as templates for new users. A recommended way to start using `CleanLabValuesDataset()` is to copy one of these folders, replace the example laboratory records with your own data, and then adapt the three specification CSV files.
+
+Each example folder has the same basic structure:
+
+```text
+tests/data/Example X/
+├── i_input/
+│   ├── dataset_lab_values.csv
+│   ├── LAB_target_units.csv
+│   ├── LAB_unit_conversion.csv
+│   └── LAB_threshold.csv
+└── i_ground_truth/
+```
+
+The `i_input` folder contains the files used as input by `CleanLabValuesDataset()`. The `i_ground_truth` folder contains the expected output used by the test harness.
+
+The four input CSV files have the following roles:
+
+| File | Role |
+|---|---|
+| `dataset_lab_values.csv` | Example laboratory-value dataset to be cleaned. |
+| `LAB_target_units.csv` | Target unit required for each laboratory-analysis concept. |
+| `LAB_unit_conversion.csv` | Rules for converting observed units to target units, including missing-unit assumptions and fallback attempts. |
+| `LAB_threshold.csv` | Plausibility thresholds used to decide whether converted values should be retained or discarded. |
+
+The examples are stored here:
+
+| Example | Directory | Main feature illustrated |
+|---|---|---|
+| Example 1 | [`tests/data/Example 1/i_input`](tests/data/Example%201/i_input) | Basic unit conversion, missing units, and thresholding. |
+| Example 2 | [`tests/data/Example 2/i_input`](tests/data/Example%202/i_input) | Thresholds conditional on variables in the dataset. |
+| Example 3 | [`tests/data/Example 3/i_input`](tests/data/Example%203/i_input) | Missing/unknown units, sequential fallback attempts, and non-numeric values. |
+| Example 4 | [`tests/data/Example 4/i_input`](tests/data/Example%204/i_input) | Non-multiplicative conversion rules and validation checks. |
+
+### Example 1: basic unit conversion, missing units, and thresholding
+
+Directory: [`tests/data/Example 1/i_input`](tests/data/Example%201/i_input)
+
+Input files:
+
+- [`dataset_lab_values.csv`](tests/data/Example%201/i_input/dataset_lab_values.csv)
+- [`LAB_target_units.csv`](tests/data/Example%201/i_input/LAB_target_units.csv)
+- [`LAB_unit_conversion.csv`](tests/data/Example%201/i_input/LAB_unit_conversion.csv)
+- [`LAB_threshold.csv`](tests/data/Example%201/i_input/LAB_threshold.csv)
+
+This example illustrates the basic behaviour of the cleaning pipeline.
+
+The input dataset contains laboratory values for weight, height, and bilirubin. Some records are already expressed in the target unit, some require conversion, and some values are outside the acceptable range.
+
+This example shows how the function:
+
+- keeps values that are already in the target unit and within the allowed range;
+- converts values from a known non-target unit to the target unit, for example `cm` to `m`;
+- applies a rule for missing units, for example assuming a missing bilirubin unit is `umol/L`;
+- discards values that remain outside the thresholds after conversion.
+
+For example, a height value of `170 cm` is converted to `1.7 m`, while an implausible weight value such as `500 kg` is discarded.
+
+### Example 2: thresholds conditional on variables in the dataset
+
+Directory: [`tests/data/Example 2/i_input`](tests/data/Example%202/i_input)
+
+Input files:
+
+- [`dataset_lab_values.csv`](tests/data/Example%202/i_input/dataset_lab_values.csv)
+- [`LAB_target_units.csv`](tests/data/Example%202/i_input/LAB_target_units.csv)
+- [`LAB_unit_conversion.csv`](tests/data/Example%202/i_input/LAB_unit_conversion.csv)
+- [`LAB_threshold.csv`](tests/data/Example%202/i_input/LAB_threshold.csv)
+
+This example illustrates thresholds that depend on another variable in the input dataset.
+
+The input dataset contains weight values together with the age of the person. The threshold file defines different acceptable weight ranges depending on age:
+
+- for children aged less than 2 years;
+- for persons aged 2 years or older.
+
+This example shows how `CleanLabValuesDataset()` can use additional variables in the dataset when deciding whether a value is plausible. For example, a weight of `50 kg` is discarded for a 1-year-old child, but accepted for a 20-year-old person.
+
+### Example 3: missing units, unknown units, sequential attempts, and non-numeric values
+
+Directory: [`tests/data/Example 3/i_input`](tests/data/Example%203/i_input)
+
+Input files:
+
+- [`dataset_lab_values.csv`](tests/data/Example%203/i_input/dataset_lab_values.csv)
+- [`LAB_target_units.csv`](tests/data/Example%203/i_input/LAB_target_units.csv)
+- [`LAB_unit_conversion.csv`](tests/data/Example%203/i_input/LAB_unit_conversion.csv)
+- [`LAB_threshold.csv`](tests/data/Example%203/i_input/LAB_threshold.csv)
+
+This example illustrates more complex handling of missing or non-standard units.
+
+The input dataset contains:
+
+- records with missing units;
+- records with units that are not explicitly listed in the conversion table;
+- values that may be interpreted in more than one possible unit;
+- values that are non-numeric.
+
+This example shows how the function can try more than one conversion rule using `next_attempt`. For example, a missing weight value can first be interpreted as kilograms; if this gives an implausible value, the function can try interpreting it as grams. This allows a value such as `500` with missing unit to be accepted as `0.5 kg`, while a value such as `500000` is discarded after the available attempts fail.
+
+The same example also shows conditional assumptions for missing height units. A missing height value such as `1.5` can be interpreted as metres, while a value such as `170` can be interpreted as centimetres and converted to `1.7 m`.
+
+Finally, the example shows that non-numeric values are discarded and flagged with the corresponding rule code.
+
+### Example 4: non-multiplicative conversion rules
+
+Directory: [`tests/data/Example 4/i_input`](tests/data/Example%204/i_input)
+
+Input files:
+
+- [`dataset_lab_values.csv`](tests/data/Example%204/i_input/dataset_lab_values.csv)
+- [`LAB_target_units.csv`](tests/data/Example%204/i_input/LAB_target_units.csv)
+- [`LAB_unit_conversion.csv`](tests/data/Example%204/i_input/LAB_unit_conversion.csv)
+- [`LAB_threshold.csv`](tests/data/Example%204/i_input/LAB_threshold.csv)
+
+Additional validation/error-demo files:
+
+- [`dataset_lab_values_wrong.csv`](tests/data/Example%204/i_input/dataset_lab_values_wrong.csv)
+- [`LAB_unit_conversion_wrong.csv`](tests/data/Example%204/i_input/LAB_unit_conversion_wrong.csv)
+- [`LAB_threshold_wrong.csv`](tests/data/Example%204/i_input/LAB_threshold_wrong.csv)
+
+This example illustrates conversions that cannot be expressed as a simple multiplication factor.
+
+The input dataset includes HbA1c values, where the target unit is `mmol/mol`. Values expressed as percentages are converted using the R expression stored in the `conversion_not_multiplication` column:
+
+```r
+(10.93 * value) - 23.5
+```
+
+This example shows how `CleanLabValuesDataset()` can evaluate a conversion formula involving the input value. For instance, an HbA1c value of `6.0 %` is converted to `42.08 mmol/mol`.
+
+The example also combines this feature with the mechanisms illustrated in Example 3, including missing-unit assumptions, fallback attempts, thresholding, and handling of non-numeric values.
+
+The additional `*_wrong.csv` files in this example can be used to understand how the metadata checks behave when input files do not satisfy the expected data model.
