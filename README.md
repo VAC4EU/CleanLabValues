@@ -85,7 +85,8 @@ The data model of this input must be as follows:
 - `datasource`: optional identifier of a data source. The conversion may be conditional on this value, and the function accepts a corresponding string as an argument. If this field is missing, this conversion applies to all data sources;
 - `origin_unit`: one of the units in the input data, or the keyword `MISSING`;
 - `multiplication_factor_from_origin_to_target`: conversion factor from the value expressed in `origin_unit` to the value expressed in the target unit;
-- `inverse_conversion`: the inverse of `multiplication_factor_from_origin_to_target`;
+- `conversion_not_multiplication` (non mandatory): conversion from the value expressed in `origin_unit` to the value expressed in the target unit, to be used when conversion is not a simple multiplication; in this case, this column must contain a valid R expression having the term 'value' as an argument; this column is only mandatory if `multiplication_factor_from_origin_to_target` is missing in at least one record; if so, one and only one conversion between `multiplication_factor_from_origin_to_target` and `conversion_not_multiplication` must be specified in every record 
+- `inverse_conversion` (non mandatory): the inverse of `multiplication_factor_from_origin_to_target`;
 - `condition_on_value`: if `origin_unit` is the keyword `MISSING`, this field may contain a condition on the value, in R code;
 - `next_attempt`: if the converted value is out of the threshold, as specified in the next section, the following actions are possible:
   - `0`: if the converted value does not meet the threshold, discard it;
