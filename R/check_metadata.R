@@ -33,8 +33,21 @@ check_dataset_model <- function(dataset) {
       stop(message)
     }
   }
+  # we want to allow for the dataset to have non-numric values, this will be counted at the end of the cleaning process
+  # for (varname in c("value")) {
+  #   vec_ <- dataset[[varname]]
+  #   is_num_ <- suppressWarnings(as.numeric(vec_))
+  #   invalid_ <- is.na(is_num_)
+  #   num_nonnumeric <- sum(invalid_)
+  #   if (num_nonnumeric > 0) {
+  #     stop(paste("The file 'dataset' has", num_nonnumeric,"record(s) where the variable ", varname," contains a non-numeric value."))
+  #   }  
+  # }
   message("[CleanLabValues] Dataset model check passed successfully.")
 }
+
+#######################################################
+# lab_target_units
 
 check_lab_target_units <- function(lab_target_units) {
   if (!(file.exists(lab_target_units))) {
@@ -48,19 +61,184 @@ check_lab_target_units <- function(lab_target_units) {
   invisible(dt)
 }
 
+
+#######################################################
+# lab_unit_conversion
+
 check_lab_unit_conversion <- function(lab_unit_conversion, datasource, list_analyses, target_unit) {
   if (!(file.exists(lab_unit_conversion))) {
     stop(paste("The file", lab_unit_conversion, "cannot be found"))
   }
   dt <- data.table::fread(lab_unit_conversion)
-  required <- c("concept_id", "unit_origin", "unit_target", "multiplication_factor_from_origin_to_target", "conversion_rate", "condition_on_value", "assumed_unit_if_missing", "next_attempt")
+  required <- c("concept_id", "unit_origin", "unit_target", "multiplication_factor_from_origin_to_target", "condition_on_value", "assumed_unit_if_missing", "next_attempt")
   for (varname in required) {
     if (!(varname %in% names(dt))) {
       stop(paste("The file", lab_unit_conversion, "should include the variable", varname, "in its data model"))
     }
   }
+  
+  # check that whenever multiplication_factor_from_origin_to_target is missing in at least one row, then the variable conversion_not_multiplication exists, and that there is no row where both variables are missing  
+  mult_raw <- dt[["multiplication_factor_from_origin_to_target"]]
+  mult_chr <- trimws(as.character(mult_raw))
+  is_missing_mult <- is.na(mult_raw) | mult_chr == ""
+  nummissing_mult <- sum(is_missing_mult)
+  
+  mult_num <- suppressWarnings(as.numeric(mult_chr))
+  invalid_mult <- !is_missing_mult & is.na(mult_num)
+  num_nonnumeric <- sum(invalid_mult)
+
+  if (num_nonnumeric > 0) {
+      stop(paste("The file", lab_unit_conversion, "has", num_nonnumeric,"record(s) where the conversion method multiplication_factor_from_origin_to_target contains a non-numeric value."))
+    }
+    
+  varconv <- "conversion_not_multiplication"
+  exists_conv <- varconv %in% names(dt)
+  
+  if (exists_conv) {
+    conv_raw <- dt[[varconv]]
+    conv_chr <- trimws(as.character(conv_raw))
+    is_missing_conv <- is.na(conv_raw) | conv_chr == ""
+    # count rows where both conversion methods are missing
+    both_present_mult_and_conv <- !is_missing_mult & !is_missing_conv
+    numboth_present_mult_and_conv <- sum(both_present_mult_and_conv)
+    #count rows where both conversion methods are included
+    both_missing_mult_and_conv <- is_missing_mult & is_missing_conv
+    nummissing_mult_and_conv <- sum(both_missing_mult_and_conv)
+  }else{
+    # conv_raw <- dt[["conversion_not_multiplication"]]
+    # conv_chr <- trimws(as.character(conv_raw))
+    # is_missing_conv <- is.na(conv_raw) | conv_chr == ""
+  }
+  
+  if (nummissing_mult > 0) {
+    if (!exists_conv) {
+      stop(paste("The file", lab_unit_conversion, "has", nummissing_mult,"record(s) where the concversion method multiplication_factor_from_origin_to_target is missing. This can only happen if there is an alternative conversion method stored in a variable named", varconv, "."))
+    }else{
+    
+      # Check 1: no row should have both conversion methods missing.
+
+      
+      if (nummissing_mult_and_conv > 0) {
+        stop(
+          "There are ",
+          nummissing_mult_and_conv,
+          " row(s) where both multiplication_factor_from_origin_to_target ",
+          "and conversion_not_multiplication are missing."
+        )
+      }
+      
+      # Check 2: no row should have both conversion methods non-missing.
+      
+      if (numboth_present_mult_and_conv > 0) {
+        stop(
+          "In the file ", lab_unit_conversion, " there are ",
+          numboth_present_mult_and_conv,
+          " row(s) where both multiplication_factor_from_origin_to_target ",
+          "and conversion_not_multiplication are non-missing. ",
+          "Only one conversion method is allowed per row."
+        )
+      }
+    }
+  }else{
+    # if multiplication_factor_from_origin_to_target does not have missing values, we still need to check that there is no conflicting information on the conversion
+    if (exists_conv) { 
+      if (numboth_present_mult_and_conv > 0) {
+        stop(
+          "In the file", lab_unit_conversion, "there are ",
+          numboth_present_mult_and_conv,
+          " row(s) where both multiplication_factor_from_origin_to_target ",
+          "and conversion_not_multiplication are non-missing. ",
+          "Only one conversion method is allowed per row."
+        )
+      }
+    }
+  }
+  
+  # If the alternative conversion method exists or the condition_on_value exists, check that it contains valid R expressions using dataset$value.
+  for (varconv in c("conversion_not_multiplication", "condition_on_value")) {
+    if (varconv %in% names(dt)) {
+      
+      conv_raw <- dt[[varconv]]
+      
+      if (is.character(conv_raw)) {
+        conv_chr <- trimws(conv_raw)
+      } else {
+        conv_chr <- trimws(as.character(conv_raw))
+      }
+      
+      is_missing_conv <- is.na(conv_raw) | conv_chr == ""
+      
+      has_nonempty_conv <- any(!is_missing_conv)
+      
+      if (has_nonempty_conv) {
+        
+        if (!is.character(conv_raw)) {
+          stop(
+            "The column ", varconv ," of the file ", lab_unit_conversion, " must be character."
+          )
+        }
+        
+        rows_with_conv <- which(!is_missing_conv)
+        
+        bad_parse_conv <- rep(FALSE, nrow(dt))
+        bad_eval_conv  <- rep(FALSE, nrow(dt))
+        eval_error_conv <- rep(NA_character_, nrow(dt))
+        
+        for (i in rows_with_conv) {
+          
+          expr_txt <- conv_chr[i]
+          
+          parsed_expr <- tryCatch(
+            parse(text = expr_txt),
+            error = function(e) e
+          )
+          
+          if (inherits(parsed_expr, "error") || length(parsed_expr) != 1L) {
+            bad_parse_conv[i] <- TRUE
+            eval_error_conv[i] <- conditionMessage(parsed_expr)
+            next
+          }
+          
+          eval_result <- tryCatch(
+            eval(
+              parse(text = expr_txt),
+              envir = list(value = c(1, 2, NA_real_)),
+              enclos = baseenv()
+            ),
+            error = function(e) e
+          )
+          
+          if (inherits(eval_result, "error")) {
+            bad_eval_conv[i] <- TRUE
+            eval_error_conv[i] <- conditionMessage(eval_result)
+          }
+        }
+        
+        numbad_parse_conv <- sum(bad_parse_conv)
+        numbad_eval_conv  <- sum(bad_eval_conv)
+        
+        if (numbad_parse_conv > 0) {
+          stop(
+            "The column ", varconv ," of the file ", lab_unit_conversion, " contains ",
+            numbad_parse_conv,
+            " expression(s) that cannot be parsed as valid R expressions."
+          )
+        }
+        
+        if (numbad_eval_conv > 0) {
+          stop(
+            "The column ", varconv ," of the file ", lab_unit_conversion, " contains ",
+            numbad_eval_conv,
+            " expression(s) that cannot be evaluated as R expressions involving a numeric variable named value."
+          )
+        }
+      }
+    }
+  }
+  
+  # if the non-mandatory argument 'datasource' is used, check that it corresponds to a variable in lab_unit_conversion
   if (datasource != "" & !("datasource" %in% names(dt))) {
-    stop(paste("You specified the argument 'datasource' but the file", lab_unit_conversion, "should include the variable 'datasource' in its data model, but it does not"))
+    stop(paste("You specified the argument 'datasource' but in this case the file", lab_unit_conversion, "should include the variable 'datasource' in its data model, while it does not"))
   }
   for (variable in unique(c(list_analyses))) {
     if (nrow(dt[concept_id == variable, .(unit_target)]) > 0) {
@@ -73,6 +251,10 @@ check_lab_unit_conversion <- function(lab_unit_conversion, datasource, list_anal
   invisible(dt)
 }
 
+
+#####################################
+# lab_thresholds
+
 check_lab_thresholds <- function(lab_thresholds, dataset) {
   if (!(file.exists(lab_thresholds))) {
     stop(paste("The file", lab_thresholds, "cannot be found"))
@@ -84,6 +266,20 @@ check_lab_thresholds <- function(lab_thresholds, dataset) {
       stop(paste("The file", lab_thresholds, "should include the variable", varname, "in its data model"))
     }
   }
+  
+  for (varname in c("Min", "Max")) {
+    vec_ <- dataset[[varname]]
+    is_num_ <- suppressWarnings(as.numeric(vec_))
+    invalid_ <- is.na(is_num_)
+    num_nonnumeric <- sum(invalid_)
+    
+    if (num_nonnumeric > 0) {
+      stop(paste("The file", lab_thresholds, "has", num_nonnumeric,"record(s) where the variable ", varname," contains a non-numeric value."))
+    }  
+  }
+
+  
+  
   message("[CleanLabValues] LAB_thresholds check passed successfully.")
   invisible(dt)
 }

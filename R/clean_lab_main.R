@@ -73,7 +73,7 @@ clean_lab_main <- function(dataset, list_analyses = c(), lab_target_units, lab_u
     # Always include assumed_unit_if_missing and unit_matched for missing unit logic
     keep_cols <- unique(c(
       "concept_id", "unit_target", "unit_origin", "multiplication_factor_from_origin_to_target", "next_attempt",
-      "assumed_unit_if_missing", "unit_matched", "conversion_rate", "condition_on_value", "condition_on_variable", "variable"
+      "assumed_unit_if_missing", "unit_matched", "conversion_not_multiplication", "condition_on_value", "condition_on_variable", "variable"
     ))
     keep_cols <- intersect(keep_cols, names(meta_cid))
     meta_cid_full <- meta_cid[, ..keep_cols]
