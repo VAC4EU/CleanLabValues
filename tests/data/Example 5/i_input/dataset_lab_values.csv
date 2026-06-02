@@ -1,0 +1,5 @@
+person_id,concept_id,value,unit
+P01,LAB_HBA1C,6.0,%
+P02,LAB_HBA1C,42,mmol/mol
+P03,LAB_HBA1C,70,%
+P04,LAB_HBA1C,70,
