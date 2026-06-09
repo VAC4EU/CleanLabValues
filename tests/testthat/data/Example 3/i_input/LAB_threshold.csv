@@ -1,0 +1,3 @@
+concept_id,Min,Max,unit_target,condition_on_variable,variable
+WEIGHT,0.4,200,kg,,
+HEIGHT,0.2,2.4,m,,

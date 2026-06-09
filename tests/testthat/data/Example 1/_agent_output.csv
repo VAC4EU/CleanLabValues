@@ -1,0 +1,9 @@
+person_id,concept_id,value_origin,unit_origin,included,value,unit_target,conversion,rule_applied,date
+P01,WEIGHT,50,kg,1,50,kg,0,0,2022-01-01
+P02,WEIGHT,500,kg,0,,kg,0,90,2022-01-02
+P01,HEIGHT,1.5,m,1,1.5,m,0,0,2022-01-03
+P02,HEIGHT,170,cm,1,1.7,m,1,1,2022-01-04
+P01,HEIGHT,170,"",0,,m,3,90,2022-01-05
+P01,LAB_BILIRUBIN,3,umol/L,1,51.3,mg/dL,1,1,2022-01-06
+P02,LAB_BILIRUBIN,3,"",0,,mg/dL,3,90,2022-01-07
+P03,LAB_BILIRUBIN,30,umol/L,0,,mg/dL,1,92,2022-01-08

@@ -1,0 +1,3 @@
+person_id,concept_id,value_origin,unit_origin,included,value,unit_target,conversion,rule_applied,date
+P01,WEIGHT,50,kg,0,,kg,0,90,2022-01-01
+P02,WEIGHT,50,kg,0,,kg,0,90,2022-01-02

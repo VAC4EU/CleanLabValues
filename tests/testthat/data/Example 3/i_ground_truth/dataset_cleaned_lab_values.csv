@@ -1,0 +1,9 @@
+person_id,concept_id,value_origin,unit_origin,included,value,unit_target,conversion,rule_applied
+P01,WEIGHT,50,XX,1,50,kg,2,0
+P02,WEIGHT,500,,1,0.5,kg,3,2
+P03,WEIGHT,500000,,0,,kg,3,92
+P03,HEIGHT,1.5,,1,1.5,m,3,0
+P04,HEIGHT,170,,1,1.7,m,3,1
+P05,HEIGHT,8,,0,,m,3,90
+P06,HEIGHT,a,,0,,m,3,99
+P06,WEIGHT,100,g,1,100,kg,1,1

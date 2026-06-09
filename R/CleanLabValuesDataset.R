@@ -35,11 +35,6 @@
 #
 
 CleanLabValuesDataset <- function(dataset, list_analyses = c(), lab_target_units, lab_unit_conversion, lab_thresholds, datasource = "") {
-  # Ensure check functions are available; source minimal checks if needed
-  if (!exists("check_dataset_model")) {
-    if (file.exists("R/check_metadata.R")) source("R/check_metadata.R") else stop("Missing R/check_metadata.R")
-  }
-
   # Basic validation of dataset and metadata files
   if (!is.data.frame(dataset) && !data.table::is.data.table(dataset)) stop("`dataset` must be a data.frame or data.table")
   for (varname in c("concept_id", "value", "unit")) if (!(varname %in% names(dataset))) stop(paste("dataset must contain column", varname))

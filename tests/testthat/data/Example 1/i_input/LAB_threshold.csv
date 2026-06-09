@@ -1,0 +1,4 @@
+concept_id,Min,Max,unit_target,condition_on_variable,variable
+LAB_BILIRUBIN,0.5,100,mg/dL,,
+WEIGHT,25,200,kg,,
+HEIGHT,1,2.4,m,,
