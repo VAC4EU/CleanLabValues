@@ -1,16 +1,3 @@
-# Authors: Rosa Gini, Yinan Mao
-
-# 16 Apr 2026
-
-# Version 0.2
-# Set up checks for the arguments
-# set up Examples 1, ..., 3
-
-# 15 Apr 2026
-
-# Version 0.1
-# Set up function
-
 #' CleanLabValuesDataset
 #'
 #' The function CleanLabValuesDataset ingests instructions to clean datasets containing results from laboratory analysis. The instructions specify which unit of measurement is desired for each laboratory analysis, what the conversion rules are, what to do if unit of measurement is missing, what the values should be considered absurd and discarded.
@@ -19,9 +6,12 @@
 #' @param dataset the name of a data.table file in memory that contains a dataset of results of laboratory analyses that needs cleaning
 #' @param list_analyses a string vector containing the names of the laboratory analyses to be cleaned. If the argument is not specified, all the laboratory analyses are cleaned
 #' @param lab_target_units a string containing the path towards a csv files containing one record per each type of laboratory analysis in list_analyses and specifying the desired unit of measurement
-#' @param lab_unit_conversions a string containing the path towards a csv files containing the specifications to convert the values in the dataset to the target unit of measurement
+#' @param lab_unit_conversion a string containing the path towards a csv files containing the specifications to convert the values in the dataset to the target unit of measurement
 #' @param lab_thresholds a string containing the path towards a csv files containing the specifications of which values should be considered absurd and discarded, possibly depending on other variables such as age
-#' @param datasource (non mandatory) a string containing name of the datasource that can be stored in lab_unit_conversions to produce a datasource-specific assumption on what to do if the unit of measurement is missing
+#' @param datasource (non mandatory) a string containing name of the datasource that can be stored in `lab_unit_conversion` to produce a datasource-specific assumption on what to do if the unit of measurement is missing
+#' @return A `data.table` with the cleaned lab results and appended result columns.
+#'
+#' @export
 #'
 #'
 #' @details

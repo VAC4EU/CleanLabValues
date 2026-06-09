@@ -1,3 +1,0 @@
-concept_id,Min,Max,unit_target,condition_on_variable,variable
-WEIGHT,0.5,8,kg,age < 2,age
-WEIGHT,8,180,kg,age >= 2,age

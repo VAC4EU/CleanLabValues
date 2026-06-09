@@ -1,4 +1,0 @@
-concept_id,Min,Max,unit_target,condition_on_variable,variable
-WEIGHT,0.4,x200,kg,,
-HEIGHT,0.2,2.4,m,,
-LAB_HBA1C,10,80,mmol/mol,,

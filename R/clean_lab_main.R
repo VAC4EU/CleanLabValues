@@ -1,11 +1,21 @@
-# Main cleaning function for lab values
+##' Main cleaning pipeline implementation
+#'
+#' Internal implementation of the lab cleaning pipeline. Use
+#' `CleanLabValuesDataset()` as the user-facing wrapper.
+#' @param dataset A `data.frame` or `data.table` with lab measurements.
+#' @param list_analyses Character vector of `concept_id` to process (default: all).
+#' @param lab_target_units Path to the `LAB_target_units` CSV file.
+#' @param lab_unit_conversion Path to the `LAB_unit_conversion` CSV file.
+#' @param lab_thresholds Path to the `LAB_thresholds` CSV file.
+#' @param datasource Optional datasource identifier (string).
+#' @return A `data.table` containing cleaned rows and appended result columns.
+#' - `included`: 1/0 whether the value is kept
+#' - `value`: cleaned/converted value when `included == 1`, otherwise NA
+#' - `unit_target`: the target unit assigned for the concept
+#' - `conversion`: integer code indicating conversion origin/type (0/1/2/3)
+#' - `rule_applied`: integer code indicating which rule was applied or failure reason
+#' @keywords internal
 #
-# Output columns appended by this pipeline (see README for full semantics):
-# - `included`: 1/0 whether the value is kept
-# - `value`: cleaned/converted value when `included == 1`, otherwise NA
-# - `unit_target`: the target unit assigned for the concept
-# - `conversion`: integer code indicating conversion origin/type (0/1/2/3)
-# - `rule_applied`: integer code indicating which rule was applied or failure reason
 clean_lab_main <- function(dataset, list_analyses = c(), lab_target_units, lab_unit_conversion, lab_thresholds, datasource = "") {
   # Ensure input is a data.table and capture original input column order
   dataset <- data.table::as.data.table(dataset)

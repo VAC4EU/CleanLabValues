@@ -1,31 +1,12 @@
-# Convert lab values to target units and flag inclusion, using data.table
-#
-# Output conventions (matching README):
-# - `conversion`: type of conversion from origin value to final value:
-#   - `0`: no conversion;
-#   - `1`: conversion from non-missing unit (conversion applied using origin unit rules);
-#   - `2`: conversion from `OTHER` unit. `OTHER` means the input `unit_origin` is
-#     a non-empty string but not listed among conversion rules. `OTHER` rows are
-#     processed through the same attempt/next_attempt chain as `MISSING` rows
-#     (prefilled assumed unit -> explicit next_attempt chain -> missing rows -> fallbacks),
-#     but successful results from the `OTHER` flow are marked `conversion = 2`.
-#   - `3`: conversion from `MISSING` unit (unit was empty/NA and missing-unit rules applied).
-#
-# - `rule_applied`: evaluation of the conversion:
-#   - `0`: no conversion needed and result accepted;
-#   - `1`: conversion needed and result accepted (single attempt accepted or direct match);
-#   - `2`: more than one conversion needed before acceptance (fallbacks);
-#   - `90`: no conversion possible and result discarded (no attempts applicable);
-#   - `91`: one conversion attempted before discarding the result;
-#   - `92`: more than one conversion attempted before discarding the result;
-#   - `99`: discarded because value is non-numeric.
-#
-# Notes:
-# - Attempt counting (`n_conversion_attempts`) is used internally to compute 90/91/92.
-# - The `OTHER` flow intentionally mirrors `MISSING` in attempt ordering and threshold
-#   decisioning; only the final `conversion` code differs (2 vs 3).
-
-## Internal helpers for mo_convert (not exported)
+#' Unit conversion helpers
+#'
+#' Internal helpers and the `mo_convert()` implementation used to convert
+#' lab values to target units and compute inclusion/conversion codes.
+#'
+#' These functions are internal to the package and are not exported.
+#'
+#' @keywords internal
+NULL
 .mo_norm <- function(x) tolower(trimws(as.character(x)))
 
 .mo_get_var_value <- function(dat, row_idx, varname) {
@@ -221,7 +202,17 @@
   FALSE
 }
 
-# Refactored mo_convert to incrementally try next_attempt (1, 2, ...) for each concept_id/unit_target, discarding if max next_attempt is reached
+##' Convert values using conversion metadata
+#'
+#' Apply conversion rules described in `metadata_convert` to the rows of
+#' `dat_unit_matched`. This returns a copy of the input with `included`,
+#' `value_converted`, `conversion`, and `rule_applied` columns populated.
+#'
+#' @param dat_unit_matched A `data.table` containing rows to convert. Must
+#'   include `concept_id`, `value`, `unit_origin`, and `unit_target`.
+#' @param metadata_convert A `data.table` specifying conversion attempts and thresholds.
+#' @return A `data.table` with conversion result columns added.
+#' @keywords internal
 mo_convert <- function(dat_unit_matched, metadata_convert) {
   # Clean, deterministic implementation of the conversion logic described in README.
   # For each row: try direct unit matches, then follow next_attempt order for missing units
