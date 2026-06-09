@@ -1,9 +1,0 @@
-person_id,concept_id,value_origin,unit_origin,included,value,unit_target,conversion,rule_applied,date
-P01,WEIGHT,50,XX,1,50,kg,3,1,2022-01-01
-P02,WEIGHT,500,"",1,0.5,kg,3,2,2022-01-02
-P03,WEIGHT,500000,"",0,,kg,3,90,2022-01-04
-P06,WEIGHT,100,g,1,100,kg,2,1,2022-01-08
-P03,HEIGHT,1.5,"",1,1.5,m,3,0,2022-01-03
-P04,HEIGHT,170,"",1,1.7,m,3,0,2022-01-05
-P05,HEIGHT,8,"",0,,m,3,90,2022-01-06
-P06,HEIGHT,a,"",0,,m,3,90,2022-01-07
