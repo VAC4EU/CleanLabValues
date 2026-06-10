@@ -1,5 +1,14 @@
-# Functions for metadata and input checks
-
+#' Validate a condition string against a data.table
+#'
+#' Check that `cond` is a single, parseable R expression that only
+#' references columns present in `dt` and evaluates to a logical vector of
+#' length 1 or `nrow(dt)`.
+#'
+#' @param dt A `data.frame` or `data.table` containing the variables used in `cond`.
+#' @param cond A single string containing an R expression that can be evaluated
+#'   in the context of `dt` (e.g. "value > 0").
+#' @return `TRUE` if the condition is valid, `FALSE` otherwise.
+#' @keywords internal
 is_valid_dt_condition <- function(dt, cond) {
   if (!is.character(cond) || length(cond) != 1L || is.na(cond)) {
     return(FALSE)
@@ -26,6 +35,14 @@ is_valid_dt_condition <- function(dt, cond) {
   TRUE
 }
 
+#' Check dataset model
+#'
+#' Ensure `dataset` contains the minimal variables required by the
+#' cleaning pipeline (`concept_id`, `value`, `unit`).
+#'
+#' @param dataset A `data.frame` or `data.table` representing the input dataset.
+#' @return Invisibly returns `NULL` on success, otherwise throws an error.
+#' @keywords internal
 check_dataset_model <- function(dataset) {
   for (varname in c("concept_id", "value", "unit")) {
     if (!(varname %in% names(dataset))) {
@@ -49,6 +66,15 @@ check_dataset_model <- function(dataset) {
 #######################################################
 # lab_target_units
 
+#' Check LAB_target_units file
+#'
+#' Validate that the `LAB_target_units` CSV exists and contains at least
+#' `concept_id` and `unit_target` columns. Returns the parsed data.table
+#' invisibly on success.
+#'
+#' @param lab_target_units Path to the `LAB_target_units` CSV file.
+#' @return A `data.table` read from `lab_target_units` (invisibly).
+#' @keywords internal
 check_lab_target_units <- function(lab_target_units) {
   if (!(file.exists(lab_target_units))) {
     stop(paste("The file", lab_target_units, "cannot be found"))
@@ -65,6 +91,18 @@ check_lab_target_units <- function(lab_target_units) {
 #######################################################
 # lab_unit_conversion
 
+#' Check LAB_unit_conversion file
+#'
+#' Validate the unit conversion metadata file and basic consistency with
+#' `LAB_target_units`. Returns the parsed `data.table` invisibly.
+#'
+#' @param lab_unit_conversion Path to the `LAB_unit_conversion` CSV file.
+#' @param datasource Optional datasource identifier (string) used to check
+#'   for a `datasource` column when provided.
+#' @param list_analyses Character vector of `concept_id` values expected.
+#' @param target_unit Named character vector mapping `concept_id` -> `unit_target`.
+#' @return A `data.table` read from `lab_unit_conversion` (invisibly).
+#' @keywords internal
 check_lab_unit_conversion <- function(lab_unit_conversion, datasource, list_analyses, target_unit) {
   if (!(file.exists(lab_unit_conversion))) {
     stop(paste("The file", lab_unit_conversion, "cannot be found"))
@@ -255,6 +293,15 @@ check_lab_unit_conversion <- function(lab_unit_conversion, datasource, list_anal
 #####################################
 # lab_thresholds
 
+#' Check LAB_thresholds file
+#'
+#' Validate the `LAB_thresholds` CSV file structure and ensure `Min`/`Max`
+#' columns are numeric where required.
+#'
+#' @param lab_thresholds Path to the `LAB_thresholds` CSV file.
+#' @param dataset The input dataset (used to validate numeric variables referenced by thresholds).
+#' @return A `data.table` read from `lab_thresholds` (invisibly).
+#' @keywords internal
 check_lab_thresholds <- function(lab_thresholds, dataset) {
   if (!(file.exists(lab_thresholds))) {
     stop(paste("The file", lab_thresholds, "cannot be found"))

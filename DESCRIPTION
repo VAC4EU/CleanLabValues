@@ -1,0 +1,18 @@
+Package: CleanLabValues
+Title: Clean and Convert Laboratory Values
+Version: 0.2.0
+Authors@R:
+    c(person("Rosa", "Gini", role = "aut"),
+      person("Yinan", "Mao", role = c("aut", "cre"), email = "ymao@example.com"))
+Description: Ingests instructions to clean datasets containing results from
+    laboratory analyses. Handles unit conversions, missing-unit imputation, and
+    exclusion of physiologically implausible values based on configurable
+    metadata (target units, conversion rules, and thresholds).
+License: AGPL-3
+Encoding: UTF-8
+RoxygenNote: 7.3.3
+Imports:
+    data.table
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
