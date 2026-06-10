@@ -1,10 +1,15 @@
 # Test script for debugging
 # This script will run CleanLabValuesDataset on an Example dataset, save the output and compare output to ground truth, if any
 
+# install CleanLabValues from a directory where the repo is cloned (in this example, from itself)
+cleanlab_path <- "."
+
+if (!requireNamespace("CleanLabValues", quietly = TRUE)) {
+  install.packages(cleanlab_path, repos = NULL, type = "source")
+}
+
+library(CleanLabValues)
 library(data.table)
-# Load modular code
-source("R/load_dependencies.R")
-load_cleanlab()
 
 examples <- c("Example 5")
 base_path <- "tests/data"

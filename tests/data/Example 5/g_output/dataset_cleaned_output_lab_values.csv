@@ -1,5 +1,5 @@
 person_id,concept_id,value_origin,unit_origin,included,value,unit_target,conversion,rule_applied
 P01,LAB_HBA1C,6,%,1,42.08,mmol/mol,1,1
 P02,LAB_HBA1C,42,mmol/mol,1,42,mmol/mol,0,0
-P03,LAB_HBA1C,70,%,1,70,mmol/mol,1,1
-P04,LAB_HBA1C,70,"",1,70,mmol/mol,3,0
+P03,LAB_HBA1C,70,%,0,,mmol/mol,1,91
+P04,LAB_HBA1C,70,"",0,,mmol/mol,3,91
