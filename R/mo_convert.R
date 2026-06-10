@@ -141,7 +141,7 @@
   list(success = FALSE, tried = 1L)
 }
 
-.mo_try_missing_chain <- function(dat, i, attempts, val_raw, conv_success = 3L, other_flow = FALSE) {
+.mo_try_missing_chain <- function(dat, i, attempts, val_raw, conv_success = 3L, other_flow = FALSE, skip_assumed_unit = NA_character_) {
   # Returns list(success=TRUE/FALSE, tried=number_of_attempts_tried)
   tried <- 0L
   # explicit next_attempt chain (>0)
@@ -170,6 +170,13 @@
   }
   # rows labelled as missing
   missing_rows <- attempts[unit_matched == "missing"]
+  if (!is.na(skip_assumed_unit) && nrow(missing_rows) > 0 && "assumed_unit_if_missing" %in% names(missing_rows)) {
+    missing_rows <- missing_rows[
+      is.na(next_attempt) |
+        next_attempt != 0 |
+        .mo_norm(assumed_unit_if_missing) != skip_assumed_unit
+    ]
+  }
   if (nrow(missing_rows) > 0) {
     for (r in seq_len(nrow(missing_rows))) {
       attempt_row <- missing_rows[r]
@@ -273,40 +280,36 @@ mo_convert <- function(dat_unit_matched, metadata_convert) {
     missing_attempts_tried <- 0L
     if (origin_other) {
       row_unit_matched <- NA_character_
+      pref_res <- list(success = FALSE, tried = 0L)
       if ("unit_matched" %in% names(dat)) row_unit_matched <- ifelse(is.na(dat$unit_matched[i]) || dat$unit_matched[i] == "", NA_character_, norm(dat$unit_matched[i]))
       if (!is.na(row_unit_matched) && nrow(attempts) > 0) {
         pref_res <- .mo_try_prefilled_assumed(dat, i, attempts, row_unit_matched, val_raw, conv_success = 1L, other_flow = TRUE)
         missing_attempts_tried <- missing_attempts_tried + pref_res$tried
         if (isTRUE(pref_res$success)) next
       }
-      miss_res <- .mo_try_missing_chain(dat, i, attempts, val_raw, conv_success = 1L, other_flow = TRUE)
+      skip_assumed_unit <- if (pref_res$tried > 0L) row_unit_matched else NA_character_
+      miss_res <- .mo_try_missing_chain(dat, i, attempts, val_raw, conv_success = 1L, other_flow = TRUE, skip_assumed_unit = skip_assumed_unit)
       missing_attempts_tried <- missing_attempts_tried + miss_res$tried
       if (isTRUE(miss_res$success)) next
     } else {
       if (unit_missing_flag) {
         row_unit_matched <- NA_character_
         if ("unit_matched" %in% names(dat)) row_unit_matched <- ifelse(is.na(dat$unit_matched[i]) || dat$unit_matched[i] == "", NA_character_, norm(dat$unit_matched[i]))
+        pref_res <- list(success = FALSE, tried = 0L)
         if (!is.na(row_unit_matched) && nrow(attempts) > 0) {
           pref_res <- .mo_try_prefilled_assumed(dat, i, attempts, row_unit_matched, val_raw, conv_success = 3L, other_flow = FALSE)
           missing_attempts_tried <- missing_attempts_tried + pref_res$tried
           if (isTRUE(pref_res$success)) next
         }
-        if (nrow(attempts) > 0) {
-          miss_res <- .mo_try_missing_chain(dat, i, attempts, val_raw, conv_success = 3L, other_flow = FALSE)
+        # Only call the missing chain if prefill did not already cover the single attempt
+        # (i.e., prefill did not run, or there are chained attempts with next_attempt > 0 to pursue).
+        if (nrow(attempts) > 0 && (pref_res$tried == 0L || nrow(attempts[!is.na(next_attempt) & next_attempt > 0L]) > 0L)) {
+          skip_assumed_unit <- if (pref_res$tried > 0L) row_unit_matched else NA_character_
+          miss_res <- .mo_try_missing_chain(dat, i, attempts, val_raw, conv_success = 3L, other_flow = FALSE, skip_assumed_unit = skip_assumed_unit)
           missing_attempts_tried <- missing_attempts_tried + miss_res$tried
           if (isTRUE(miss_res$success)) next
         }
       }
-    }
-
-    # 2) If unit missing (or flagged missing), try attempts ordered by next_attempt (for assumed units)
-    if (unit_missing_flag && nrow(attempts) > 0) {
-      # consider explicit next_attempt chain (>0) first, then any rows that encode MISSING regardless of next_attempt
-      # Try the missing-attempts chain (includes explicit next_attempt chain
-      # and any rows labelled as MISSING).
-      miss_res <- .mo_try_missing_chain(dat, i, attempts, val_raw, conv_success = 3L, other_flow = FALSE)
-      missing_attempts_tried <- missing_attempts_tried + miss_res$tried
-      if (isTRUE(miss_res$success)) next
     }
 
     # 3) Fallback: try all attempts ordered by next_attempt (1,2,...) as fallbacks for conversion

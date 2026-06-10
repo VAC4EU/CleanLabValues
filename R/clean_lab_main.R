@@ -22,6 +22,13 @@ clean_lab_main <- function(dataset, list_analyses = c(), lab_target_units, lab_u
   meta_unit_conv <- data.table::fread(lab_unit_conversion)
   meta_thresholds <- data.table::fread(lab_thresholds)
 
+  requested_datasource <- datasource
+  if (requested_datasource != "" && "datasource" %in% names(meta_unit_conv)) {
+    meta_unit_conv <- meta_unit_conv[
+      is.na(datasource) | trimws(as.character(datasource)) == "" | datasource == requested_datasource
+    ]
+  }
+
   # If list_analyses is empty, use all concept_ids from target units
   if (length(list_analyses) == 0) {
     list_analyses <- unique(meta_target_units$concept_id)
@@ -97,7 +104,10 @@ clean_lab_main <- function(dataset, list_analyses = c(), lab_target_units, lab_u
     # For compatibility with mo_convert, rename unit_origin to unit_matched
     setnames(meta_cid_full, "unit_origin", "unit_matched", skip_absent = TRUE)
     # Step 4: mo_convert with full metadata (unit conversion and thresholding)
-    dt_cid <- mo_convert(dt_cid, meta_cid_full)
+    dt_cid <- mo_convert(
+      dat_unit_matched = dt_cid,
+      metadata_convert = meta_cid_full
+    )
     dt_cid[, value := data.table::fifelse(included == 1, value_converted, NA_real_)]
     dt_cid[, unit_target := target_unit_cid]
 

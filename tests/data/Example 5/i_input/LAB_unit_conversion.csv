@@ -1,0 +1,5 @@
+concept_id,datasource,unit_origin,unit_target,multiplication_factor_from_origin_to_target,conversion_not_multiplication,conversion_rate,condition_on_value,assumed_unit_if_missing,next_attempt
+LAB_HBA1C,,%,"mmol/mol",,(10.93 * value) - 23.5,,,,0
+LAB_HBA1C,DS_A,MISSING,"mmol/mol",,(10.93 * value) - 23.5,,,"%",0
+LAB_HBA1C,DS_B,MISSING,"mmol/mol",1,,1,,"mmol/mol",1
+LAB_HBA1C,DS_B,MISSING,"mmol/mol",,(10.93 * value) - 23.5,,,%,2
