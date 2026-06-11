@@ -169,22 +169,14 @@ During cleaning, the program renames 'value' as 'value_origin' and 'unit' as 'un
 
   The top-level function `CleanLabValuesDataset()` performs the required metadata checks (`check_dataset_model`, `check_lab_target_units`, `check_lab_unit_conversion`, `check_lab_thresholds`) before running the cleaning pipeline. You can call it directly; it will validate the `dataset` and the three CSV metadata files and then run the cleaning logic.
 
-  For interactive use (to call lower-level functions or run tests), load the module files first:
-
-  ```r
-  # load modules once when developing or running interactively
-  source("R/load_dependencies.R")
-  load_cleanlab()
-  ```
-
   Example: run cleaning with metadata files
 
   ```r
   cleaned <- CleanLabValuesDataset(
     dataset = dataset_lab_values,
-    lab_target_units = "tests/data/Example 1/i_input/LAB_target_units.csv",
-    lab_unit_conversion = "tests/data/Example 1/i_input/LAB_unit_conversion.csv",
-    lab_thresholds = "tests/data/Example 1/i_input/LAB_threshold.csv"
+    lab_target_units = "tests/testthat/data/Example 1/i_input/LAB_target_units.csv",
+    lab_unit_conversion = "tests/testthat/data/Example 1/i_input/LAB_unit_conversion.csv",
+    lab_thresholds = "tests/testthat/data/Example 1/i_input/LAB_threshold.csv"
   )
   ```
 
@@ -192,34 +184,38 @@ During cleaning, the program renames 'value' as 'value_origin' and 'unit' as 'un
 
 ## Testing
 
-A simple example harness is provided in `tests/test_clean_lab_main.R` which runs the pipeline on the example datasets under `tests/data/Example 1`, `Example 2`, `Example 3` and `Example 4` and compares the output with the ground-truth CSVs.
+A package test suite is provided under `tests/testthat`. The example-based tests cover Examples 1 to 4, and the validation tests cover the Example 4 negative case plus Example 5.
 
-From the project root you can run the harness directly with:
-
-```bash
-Rscript tests/test_clean_lab_main.R
-```
-
-For interactive debugging or development, load the modules and then source the test script from an R session:
+From the project root, run the full test suite with:
 
 ```r
-source("R/load_dependencies.R")
-load_cleanlab()
-source("tests/test_clean_lab_main.R")
+devtools::test()
+```
+
+For focused debugging, you can source an individual test file from an interactive R session started in the package root:
+
+```r
+library(CleanLabValues)
+library(testthat)
+library(data.table)
+
+source("tests/testthat/test-examples.R")
+source("tests/testthat/test-validation.R")
 ```
 
 Notes:
 - Ensure your working directory is the project root when running these commands.
-- The harness expects `data.table` to be installed.
+- `devtools::test()` is the recommended package-development entry point.
+- Sourcing a `test-*.R` file is useful when you want to iterate on one slice of the suite.
 
-## Deatils of the four examples
+## Details of the five examples
 
-The repository contains four small worked examples in `tests/data`. These examples are useful both for testing and as templates for new users. A recommended way to start using `CleanLabValuesDataset()` is to copy one of these folders, replace the example laboratory records with your own data, and then adapt the three specification CSV files.
+The repository contains five small worked examples in `tests/testthat/data`. These examples are useful both for testing and as templates for new users. A recommended way to start using `CleanLabValuesDataset()` is to copy one of these folders, replace the example laboratory records with your own data, and then adapt the three specification CSV files.
 
 Each example folder has the same basic structure:
 
 ```text
-tests/data/Example X/
+tests/testthat/data/Example X/
 ├── i_input/
 │   ├── dataset_lab_values.csv
 │   ├── LAB_target_units.csv
@@ -232,32 +228,33 @@ The `i_input` folder contains the files used as input by `CleanLabValuesDataset(
 
 The four input CSV files have the following roles:
 
-| File | Role |
-|---|---|
-| `dataset_lab_values.csv` | Example laboratory-value dataset to be cleaned. |
-| `LAB_target_units.csv` | Target unit required for each laboratory-analysis concept. |
+| File                      | Role                                                                                                           |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `dataset_lab_values.csv`  | Example laboratory-value dataset to be cleaned.                                                                |
+| `LAB_target_units.csv`    | Target unit required for each laboratory-analysis concept.                                                     |
 | `LAB_unit_conversion.csv` | Rules for converting observed units to target units, including missing-unit assumptions and fallback attempts. |
-| `LAB_threshold.csv` | Plausibility thresholds used to decide whether converted values should be retained or discarded. |
+| `LAB_threshold.csv`       | Plausibility thresholds used to decide whether converted values should be retained or discarded.               |
 
 The examples are stored here:
 
-| Example | Directory | Main feature illustrated |
-|---|---|---|
-| Example 1 | [`tests/data/Example 1/i_input`](tests/data/Example%201/i_input) | Basic unit conversion, missing units, and thresholding. |
-| Example 2 | [`tests/data/Example 2/i_input`](tests/data/Example%202/i_input) | Thresholds conditional on variables in the dataset. |
-| Example 3 | [`tests/data/Example 3/i_input`](tests/data/Example%203/i_input) | Missing/unknown units, sequential fallback attempts, and non-numeric values. |
-| Example 4 | [`tests/data/Example 4/i_input`](tests/data/Example%204/i_input) | Non-multiplicative conversion rules and validation checks. |
+| Example   | Directory                                                                          | Main feature illustrated                                                     |
+| --------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Example 1 | [`tests/testthat/data/Example 1/i_input`](tests/testthat/data/Example%201/i_input) | Basic unit conversion, missing units, and thresholding.                      |
+| Example 2 | [`tests/testthat/data/Example 2/i_input`](tests/testthat/data/Example%202/i_input) | Thresholds conditional on variables in the dataset.                          |
+| Example 3 | [`tests/testthat/data/Example 3/i_input`](tests/testthat/data/Example%203/i_input) | Missing/unknown units, sequential fallback attempts, and non-numeric values. |
+| Example 4 | [`tests/testthat/data/Example 4/i_input`](tests/testthat/data/Example%204/i_input) | Non-multiplicative conversion rules and validation checks.                   |
+| Example 5 | [`tests/testthat/data/Example 5/i_input`](tests/testthat/data/Example%205/i_input) | Datasource-specific conversion rules and missing-unit assumptions.           |
 
 ### Example 1: basic unit conversion, missing units, and thresholding
 
-Directory: [`tests/data/Example 1/i_input`](tests/data/Example%201/i_input)
+Directory: [`tests/testthat/data/Example 1/i_input`](tests/testthat/data/Example%201/i_input)
 
 Input files:
 
-- [`dataset_lab_values.csv`](tests/data/Example%201/i_input/dataset_lab_values.csv)
-- [`LAB_target_units.csv`](tests/data/Example%201/i_input/LAB_target_units.csv)
-- [`LAB_unit_conversion.csv`](tests/data/Example%201/i_input/LAB_unit_conversion.csv)
-- [`LAB_threshold.csv`](tests/data/Example%201/i_input/LAB_threshold.csv)
+- [`dataset_lab_values.csv`](tests/testthat/data/Example%201/i_input/dataset_lab_values.csv)
+- [`LAB_target_units.csv`](tests/testthat/data/Example%201/i_input/LAB_target_units.csv)
+- [`LAB_unit_conversion.csv`](tests/testthat/data/Example%201/i_input/LAB_unit_conversion.csv)
+- [`LAB_threshold.csv`](tests/testthat/data/Example%201/i_input/LAB_threshold.csv)
 
 This example illustrates the basic behaviour of the cleaning pipeline.
 
@@ -274,14 +271,14 @@ For example, a height value of `170 cm` is converted to `1.7 m`, while an implau
 
 ### Example 2: thresholds conditional on variables in the dataset
 
-Directory: [`tests/data/Example 2/i_input`](tests/data/Example%202/i_input)
+Directory: [`tests/testthat/data/Example 2/i_input`](tests/testthat/data/Example%202/i_input)
 
 Input files:
 
-- [`dataset_lab_values.csv`](tests/data/Example%202/i_input/dataset_lab_values.csv)
-- [`LAB_target_units.csv`](tests/data/Example%202/i_input/LAB_target_units.csv)
-- [`LAB_unit_conversion.csv`](tests/data/Example%202/i_input/LAB_unit_conversion.csv)
-- [`LAB_threshold.csv`](tests/data/Example%202/i_input/LAB_threshold.csv)
+- [`dataset_lab_values.csv`](tests/testthat/data/Example%202/i_input/dataset_lab_values.csv)
+- [`LAB_target_units.csv`](tests/testthat/data/Example%202/i_input/LAB_target_units.csv)
+- [`LAB_unit_conversion.csv`](tests/testthat/data/Example%202/i_input/LAB_unit_conversion.csv)
+- [`LAB_threshold.csv`](tests/testthat/data/Example%202/i_input/LAB_threshold.csv)
 
 This example illustrates thresholds that depend on another variable in the input dataset.
 
@@ -294,14 +291,14 @@ This example shows how `CleanLabValuesDataset()` can use additional variables in
 
 ### Example 3: missing units, unknown units, sequential attempts, and non-numeric values
 
-Directory: [`tests/data/Example 3/i_input`](tests/data/Example%203/i_input)
+Directory: [`tests/testthat/data/Example 3/i_input`](tests/testthat/data/Example%203/i_input)
 
 Input files:
 
-- [`dataset_lab_values.csv`](tests/data/Example%203/i_input/dataset_lab_values.csv)
-- [`LAB_target_units.csv`](tests/data/Example%203/i_input/LAB_target_units.csv)
-- [`LAB_unit_conversion.csv`](tests/data/Example%203/i_input/LAB_unit_conversion.csv)
-- [`LAB_threshold.csv`](tests/data/Example%203/i_input/LAB_threshold.csv)
+- [`dataset_lab_values.csv`](tests/testthat/data/Example%203/i_input/dataset_lab_values.csv)
+- [`LAB_target_units.csv`](tests/testthat/data/Example%203/i_input/LAB_target_units.csv)
+- [`LAB_unit_conversion.csv`](tests/testthat/data/Example%203/i_input/LAB_unit_conversion.csv)
+- [`LAB_threshold.csv`](tests/testthat/data/Example%203/i_input/LAB_threshold.csv)
 
 This example illustrates more complex handling of missing or non-standard units.
 
@@ -320,20 +317,20 @@ Finally, the example shows that non-numeric values are discarded and flagged wit
 
 ### Example 4: non-multiplicative conversion rules
 
-Directory: [`tests/data/Example 4/i_input`](tests/data/Example%204/i_input)
+Directory: [`tests/testthat/data/Example 4/i_input`](tests/testthat/data/Example%204/i_input)
 
 Input files:
 
-- [`dataset_lab_values.csv`](tests/data/Example%204/i_input/dataset_lab_values.csv)
-- [`LAB_target_units.csv`](tests/data/Example%204/i_input/LAB_target_units.csv)
-- [`LAB_unit_conversion.csv`](tests/data/Example%204/i_input/LAB_unit_conversion.csv)
-- [`LAB_threshold.csv`](tests/data/Example%204/i_input/LAB_threshold.csv)
+- [`dataset_lab_values.csv`](tests/testthat/data/Example%204/i_input/dataset_lab_values.csv)
+- [`LAB_target_units.csv`](tests/testthat/data/Example%204/i_input/LAB_target_units.csv)
+- [`LAB_unit_conversion.csv`](tests/testthat/data/Example%204/i_input/LAB_unit_conversion.csv)
+- [`LAB_threshold.csv`](tests/testthat/data/Example%204/i_input/LAB_threshold.csv)
 
 Additional validation/error-demo files:
 
-- [`dataset_lab_values_wrong.csv`](tests/data/Example%204/i_input/dataset_lab_values_wrong.csv)
-- [`LAB_unit_conversion_wrong.csv`](tests/data/Example%204/i_input/LAB_unit_conversion_wrong.csv)
-- [`LAB_threshold_wrong.csv`](tests/data/Example%204/i_input/LAB_threshold_wrong.csv)
+- [`dataset_lab_values_wrong.csv`](tests/testthat/data/Example%204/i_input/dataset_lab_values_wrong.csv)
+- [`LAB_unit_conversion_wrong.csv`](tests/testthat/data/Example%204/i_input/LAB_unit_conversion_wrong.csv)
+- [`LAB_threshold_wrong.csv`](tests/testthat/data/Example%204/i_input/LAB_threshold_wrong.csv)
 
 This example illustrates conversions that cannot be expressed as a simple multiplication factor.
 
@@ -348,3 +345,26 @@ This example shows how `CleanLabValuesDataset()` can evaluate a conversion formu
 The example also combines this feature with the mechanisms illustrated in Example 3, including missing-unit assumptions, fallback attempts, thresholding, and handling of non-numeric values.
 
 The additional `*_wrong.csv` files in this example can be used to understand how the metadata checks behave when input files do not satisfy the expected data model.
+
+### Example 5: datasource-specific missing-unit assumptions
+
+Directory: [`tests/testthat/data/Example 5/i_input`](tests/testthat/data/Example%205/i_input)
+
+Input files:
+
+- [`dataset_lab_values.csv`](tests/testthat/data/Example%205/i_input/dataset_lab_values.csv)
+- [`LAB_target_units.csv`](tests/testthat/data/Example%205/i_input/LAB_target_units.csv)
+- [`LAB_unit_conversion.csv`](tests/testthat/data/Example%205/i_input/LAB_unit_conversion.csv)
+- [`LAB_threshold.csv`](tests/testthat/data/Example%205/i_input/LAB_threshold.csv)
+
+Additional comparison file:
+
+- [`LAB_unit_conversion_no_DS.csv`](tests/testthat/data/Example%205/i_input/LAB_unit_conversion_no_DS.csv)
+
+This example illustrates how conversion rules can depend on the `datasource` argument.
+
+The dataset contains HbA1c values expressed either explicitly as `%` or `mmol/mol`, plus a record with a missing unit. The conversion table includes datasource-specific rules for how to interpret that missing unit.
+
+For datasource `DS_A`, a missing unit is assumed to mean `%`, so a value such as `70` is converted with the non-multiplicative HbA1c formula into `mmol/mol`. For datasource `DS_B`, the same missing value is first interpreted as already being in `mmol/mol`, and only if that result fails thresholding does the next attempt interpret it as `%`.
+
+This example shows how the same observed record can lead to different outcomes depending on datasource-specific metadata, while still using the same top-level cleaning function.

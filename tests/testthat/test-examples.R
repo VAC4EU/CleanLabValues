@@ -1,5 +1,6 @@
 library(CleanLabValues)
 library(data.table)
+library(testthat)
 
 base_path <- function(...) test_path("data", ...)
 
@@ -26,19 +27,8 @@ run_example <- function(ex) {
 
   all.equal(cleaned, gt, check.attributes = FALSE)
 }
-
-test_that("Example 1 matches ground truth", {
-  expect_true(isTRUE(run_example("Example 1")))
-})
-
-test_that("Example 2 matches ground truth", {
-  expect_true(isTRUE(run_example("Example 2")))
-})
-
-test_that("Example 3 matches ground truth", {
-  expect_true(isTRUE(run_example("Example 3")))
-})
-
-test_that("Example 4 matches ground truth", {
-  expect_true(isTRUE(run_example("Example 4")))
-})
+for (i in 1:4) {
+  test_that(paste("Example", i, "matches ground truth"), {
+    expect_true(isTRUE(run_example(paste("Example", i))))
+  })
+}
