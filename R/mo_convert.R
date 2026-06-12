@@ -9,14 +9,15 @@
 NULL
 .mo_norm <- function(x) tolower(trimws(as.character(x)))
 
-.mo_get_var_value <- function(dat, row_idx, varname) {
+.mo_get_cached_var_value <- function(var_cache, row_idx, varname) {
   if (is.null(varname) || is.na(varname) || varname == "") {
     return(NA)
   }
-  if (varname %in% names(dat)) {
-    return(dat[[varname]][row_idx])
+  values <- var_cache[[varname]]
+  if (is.null(values)) {
+    return(NA)
   }
-  NA
+  values[row_idx]
 }
 
 .mo_parse_optional_expr <- function(expr_text, default_expr = quote(NA_real_)) {
@@ -63,6 +64,36 @@ NULL
   )
 }
 
+.mo_finalize_attempt_bundle <- function(attempt_bundle) {
+  if (attempt_bundle$n == 0L) {
+    attempt_bundle$next_positive_idx <- integer(0)
+    attempt_bundle$missing_idx <- integer(0)
+    attempt_bundle$fallback_idx_by_code <- list()
+    attempt_bundle$assumed_units <- character(0)
+    return(attempt_bundle)
+  }
+
+  next_pos <- which(!is.na(attempt_bundle$next_attempt) & attempt_bundle$next_attempt > 0)
+  attempt_bundle$next_positive_idx <- if (length(next_pos) > 0) {
+    next_pos[order(attempt_bundle$next_attempt[next_pos])]
+  } else {
+    integer(0)
+  }
+  attempt_bundle$missing_idx <- which(attempt_bundle$unit_matched == "missing")
+  fallback_order <- sort(unique(attempt_bundle$next_attempt[next_pos]))
+  attempt_bundle$fallback_idx_by_code <- lapply(fallback_order, function(code) {
+    which(attempt_bundle$next_attempt == code)
+  })
+  names(attempt_bundle$fallback_idx_by_code) <- as.character(fallback_order)
+
+  assumed_idx <- which(
+    attempt_bundle$unit_matched == "missing" &
+      (is.na(attempt_bundle$condition_on_value) | attempt_bundle$condition_on_value == "")
+  )
+  attempt_bundle$assumed_units <- unique(na.omit(.mo_norm(attempt_bundle$assumed_unit_if_missing[assumed_idx])))
+  attempt_bundle
+}
+
 .mo_eval_vectorized_values <- function(values, meta_rows, meta_pos = NULL) {
   out <- rep(NA_real_, length(values))
   factor_num <- meta_rows$factor_num
@@ -84,8 +115,7 @@ NULL
   out
 }
 
-.mo_eval_attempt <- function(attempt_bundle, attempt_idx, val_raw, dat, row_idx) {
-  # Returns list(success=TRUE/FALSE, val_conv=?, attempted=TRUE/FALSE)
+.mo_eval_attempt_prepared <- function(attempt_bundle, attempt_idx, val_raw, row_idx, var_cache) {
   factor <- attempt_bundle$factor_num[attempt_idx]
   if (!is.na(factor)) {
     val_conv <- val_raw * factor
@@ -105,7 +135,7 @@ NULL
     if (!is.null(cond_var) && !is.na(cond_var) && cond_var != "") {
       varname <- attempt_bundle$variable[attempt_idx]
       if (!is.null(varname) && !is.na(varname) && varname == "") varname <- NULL
-      cond_val <- .mo_get_var_value(dat, row_idx, varname)
+      cond_val <- .mo_get_cached_var_value(var_cache, row_idx, varname)
       if (is.na(cond_val)) {
         return(list(success = FALSE, attempted = FALSE))
       }
@@ -124,146 +154,24 @@ NULL
   list(success = FALSE, attempted = attempted)
 }
 
-# Small, top-level helpers to keep `mo_convert()` concise. They operate by
-# modifying `dat` by reference (using `i`) and return success flags and
-# attempt counts where appropriate.
-.mo_try_direct_matches <- function(dat, i, attempt_bundle, attempt_unit_matched, unit_origin, target, val_raw) {
-  if (attempt_bundle$n > 0 && !is.na(unit_origin)) {
-    direct_idx <- which(attempt_unit_matched == unit_origin)
-    if (length(direct_idx) > 0) {
-      for (r in direct_idx) {
-        dat[i, n_conversion_attempts := n_conversion_attempts + 1L]
-        res <- .mo_eval_attempt(attempt_bundle, r, val_raw, dat, i)
-        if (isTRUE(res$success)) {
-          dat[i, `:=`(
-            included = 1L,
-            value_converted = res$val_conv,
-            conversion = ifelse(is.na(unit_origin) || unit_origin == target, 0L, ifelse(unit_origin == target, 0L, 1L)),
-            rule_applied = ifelse(is.na(unit_origin) || unit_origin == target, 0L, 1L)
-          )]
-          return(TRUE)
-        }
-      }
-    }
+.mo_success_codes <- function(attempt_bundle, attempt_idx, conv_success, other_flow = FALSE, fallback_attempts_made = NA_integer_) {
+  factor_try <- attempt_bundle$factor_num[attempt_idx]
+  conv_code <- conv_success
+  if (!is.na(factor_try) && factor_try == 1 && conv_success == 1L && isTRUE(other_flow)) {
+    conv_code <- 2L
   }
-  FALSE
-}
-
-.mo_try_prefilled_assumed <- function(dat, i, attempt_bundle, attempt_unit_matched, row_unit_matched, val_raw, conv_success = 3L, other_flow = FALSE) {
-  # Returns list(success=TRUE/FALSE, tried=0/1)
-  if (is.na(row_unit_matched) || attempt_bundle$n == 0) {
-    return(list(success = FALSE, tried = 0L))
-  }
-  assumed_idx <- which(attempt_unit_matched == "missing" & (is.na(attempt_bundle$condition_on_value) | attempt_bundle$condition_on_value == ""))
-  assumed_list <- unique(na.omit(tolower(trimws(as.character(attempt_bundle$assumed_unit_if_missing[assumed_idx])))))
-  if (!(row_unit_matched %in% assumed_list)) {
-    return(list(success = FALSE, tried = 0L))
-  }
-  assumed_rows_idx <- which(attempt_unit_matched == row_unit_matched)
-  if (length(assumed_rows_idx) == 0) {
-    return(list(success = FALSE, tried = 0L))
-  }
-  dat[i, n_conversion_attempts := n_conversion_attempts + 1L]
-  assumed_idx_first <- assumed_rows_idx[1]
-  res <- .mo_eval_attempt(attempt_bundle, assumed_idx_first, val_raw, dat, i)
-  if (isTRUE(res$success)) {
-    factor_try <- attempt_bundle$factor_num[assumed_idx_first]
-    if (!is.na(factor_try) && factor_try == 1) {
-      rp <- 0L
+  if (!is.na(fallback_attempts_made)) {
+    rp <- ifelse(fallback_attempts_made == 1L, 1L, 2L)
+  } else if (!is.na(factor_try) && factor_try == 1) {
+    rp <- 0L
+  } else {
+    rp <- if (!is.na(attempt_bundle$next_attempt[attempt_idx]) && attempt_bundle$next_attempt[attempt_idx] > 0) {
+      as.integer(attempt_bundle$next_attempt[attempt_idx])
     } else {
-      rp <- if (!is.na(attempt_bundle$next_attempt[assumed_idx_first]) && attempt_bundle$next_attempt[assumed_idx_first] > 0) as.integer(attempt_bundle$next_attempt[assumed_idx_first]) else 1L
-    }
-    conv_code <- conv_success
-    if (!is.na(factor_try) && factor_try == 1 && conv_success == 1L && isTRUE(other_flow)) conv_code <- 2L
-    dat[i, `:=`(included = 1L, value_converted = res$val_conv, conversion = conv_code, rule_applied = rp)]
-    return(list(success = TRUE, tried = 1L))
-  }
-  list(success = FALSE, tried = 1L)
-}
-
-.mo_try_missing_chain <- function(dat, i, attempt_bundle, attempt_unit_matched, val_raw, conv_success = 3L, other_flow = FALSE, skip_assumed_unit = NA_character_) {
-  # Returns list(success=TRUE/FALSE, tried=number_of_attempts_tried)
-  tried <- 0L
-  # explicit next_attempt chain (>0)
-  miss_attempts_idx <- which(!is.na(attempt_bundle$next_attempt) & attempt_bundle$next_attempt > 0)
-  if (length(miss_attempts_idx) > 0) {
-    miss_attempts_idx <- miss_attempts_idx[order(attempt_bundle$next_attempt[miss_attempts_idx])]
-    for (r in miss_attempts_idx) {
-      res <- .mo_eval_attempt(attempt_bundle, r, val_raw, dat, i)
-      if (isTRUE(res$attempted)) {
-        dat[i, n_conversion_attempts := n_conversion_attempts + 1L]
-        tried <- tried + 1L
-      }
-      if (isTRUE(res$success)) {
-        factor_try <- attempt_bundle$factor_num[r]
-        if (!is.na(factor_try) && factor_try == 1) {
-          rp <- 0L
-        } else {
-          rp <- if (!is.na(attempt_bundle$next_attempt[r]) && attempt_bundle$next_attempt[r] > 0) as.integer(attempt_bundle$next_attempt[r]) else 1L
-        }
-        conv_code <- conv_success
-        if (!is.na(factor_try) && factor_try == 1 && conv_success == 1L && isTRUE(other_flow)) conv_code <- 2L
-        dat[i, `:=`(included = 1L, value_converted = res$val_conv, conversion = conv_code, rule_applied = rp)]
-        return(list(success = TRUE, tried = tried))
-      }
+      1L
     }
   }
-  # rows labelled as missing
-  missing_idx <- which(attempt_unit_matched == "missing")
-  if (!is.na(skip_assumed_unit) && length(missing_idx) > 0) {
-    missing_idx <- missing_idx[
-      is.na(attempt_bundle$next_attempt[missing_idx]) |
-        attempt_bundle$next_attempt[missing_idx] != 0 |
-        .mo_norm(attempt_bundle$assumed_unit_if_missing[missing_idx]) != skip_assumed_unit
-    ]
-  }
-  if (length(missing_idx) > 0) {
-    for (r in missing_idx) {
-      res <- .mo_eval_attempt(attempt_bundle, r, val_raw, dat, i)
-      if (isTRUE(res$attempted)) {
-        dat[i, n_conversion_attempts := n_conversion_attempts + 1L]
-        tried <- tried + 1L
-      }
-      if (isTRUE(res$success)) {
-        factor_try <- attempt_bundle$factor_num[r]
-        if (!is.na(factor_try) && factor_try == 1) {
-          rp <- 0L
-        } else {
-          rp <- if (!is.na(attempt_bundle$next_attempt[r]) && attempt_bundle$next_attempt[r] > 0) as.integer(attempt_bundle$next_attempt[r]) else 1L
-        }
-        conv_code <- conv_success
-        if (!is.na(factor_try) && factor_try == 1 && conv_success == 1L && isTRUE(other_flow)) conv_code <- 2L
-        dat[i, `:=`(included = 1L, value_converted = res$val_conv, conversion = conv_code, rule_applied = rp)]
-        return(list(success = TRUE, tried = tried))
-      }
-    }
-  }
-  list(success = FALSE, tried = tried)
-}
-
-.mo_try_fallbacks <- function(dat, i, attempt_bundle, val_raw, conv_success = 1L, other_flow = FALSE) {
-  if (attempt_bundle$n <= 0) {
-    return(FALSE)
-  }
-  fallback_order <- unique(attempt_bundle$next_attempt[!is.na(attempt_bundle$next_attempt) & attempt_bundle$next_attempt > 0])
-  fallback_order <- sort(fallback_order)
-  attempts_made <- 0L
-  for (code in fallback_order) {
-    rows_idx <- which(attempt_bundle$next_attempt == code)
-    for (j in rows_idx) {
-      dat[i, n_conversion_attempts := n_conversion_attempts + 1L]
-      res <- .mo_eval_attempt(attempt_bundle, j, val_raw, dat, i)
-      attempts_made <- attempts_made + 1L
-      if (isTRUE(res$success)) {
-        factor_try <- attempt_bundle$factor_num[j]
-        conv_code <- conv_success
-        if (!is.na(factor_try) && factor_try == 1 && conv_success == 1L && isTRUE(other_flow)) conv_code <- 2L
-        dat[i, `:=`(included = 1L, value_converted = res$val_conv, conversion = conv_code, rule_applied = ifelse(attempts_made == 1L, 1L, 2L))]
-        return(TRUE)
-      }
-    }
-  }
-  FALSE
+  list(conversion = as.integer(conv_code), rule_applied = as.integer(rp))
 }
 
 ##' Convert values using conversion metadata
@@ -297,9 +205,9 @@ mo_convert <- function(dat_unit_matched, metadata_convert) {
   meta[, unit_matched := ifelse(is.na(unit_matched) | unit_matched == "", NA_character_, .mo_norm(unit_matched))]
   meta[, .meta_key := paste(concept_id, unit_target, sep = "\r")]
   meta_by_key <- split(meta, by = ".meta_key", keep.by = FALSE, sorted = FALSE)
-  meta_bundle_by_key <- lapply(meta_by_key, .mo_prepare_attempt_bundle)
+  meta_bundle_by_key <- lapply(meta_by_key, function(x) .mo_finalize_attempt_bundle(.mo_prepare_attempt_bundle(x)))
   empty_attempts <- meta[0]
-  empty_attempt_bundle <- .mo_prepare_attempt_bundle(empty_attempts)
+  empty_attempt_bundle <- .mo_finalize_attempt_bundle(.mo_prepare_attempt_bundle(empty_attempts))
   simple_direct_meta <- meta[
     !is.na(unit_matched) &
       unit_matched != "missing" &
@@ -345,18 +253,9 @@ mo_convert <- function(dat_unit_matched, metadata_convert) {
     }
   }
 
-  # Use internal helpers
-
-  dat[, `:=`(
-    included = as.integer(NA),
-    value_converted = as.numeric(NA),
-    conversion = as.integer(NA),
-    rule_applied = as.integer(NA),
-    n_conversion_attempts = 0L
-  )]
-
   # local alias helpers for readability
   norm <- .mo_norm
+  n_dat <- nrow(dat)
   cid_vec <- dat$concept_id
   target_vec <- dat$unit_target
   val_raw_vec <- suppressWarnings(as.numeric(dat$value))
@@ -369,12 +268,25 @@ mo_convert <- function(dat_unit_matched, metadata_convert) {
   row_unit_matched_vec <- if ("unit_matched" %in% names(dat)) {
     ifelse(is.na(dat$unit_matched) | dat$unit_matched == "", NA_character_, norm(dat$unit_matched))
   } else {
-    rep(NA_character_, nrow(dat))
+    rep(NA_character_, n_dat)
   }
   meta_key_vec <- paste(cid_vec, target_vec, sep = "\r")
-  direct_attempt_done <- rep(FALSE, nrow(dat))
-  prefilled_attempt_done <- rep(FALSE, nrow(dat))
-  prefilled_attempt_tried <- integer(nrow(dat))
+  direct_attempt_done <- rep(FALSE, n_dat)
+  prefilled_attempt_done <- rep(FALSE, n_dat)
+  prefilled_attempt_tried <- integer(n_dat)
+  n_conversion_attempts <- integer(n_dat)
+  included <- rep(NA_integer_, n_dat)
+  value_converted <- rep(NA_real_, n_dat)
+  conversion <- rep(NA_integer_, n_dat)
+  rule_applied <- rep(NA_integer_, n_dat)
+
+  condition_variables <- unique(unlist(lapply(meta_bundle_by_key, function(bundle) bundle$variable), use.names = FALSE))
+  condition_variables <- condition_variables[!is.na(condition_variables) & condition_variables != "" & condition_variables %in% names(dat)]
+  var_cache <- if (length(condition_variables) > 0) {
+    dat[, ..condition_variables]
+  } else {
+    list()
+  }
 
   if (exists("simple_direct_meta") && nrow(simple_direct_meta) > 0) {
     direct_key_vec <- paste(meta_key_vec, unit_origin_vec, sep = "\r")
@@ -382,7 +294,7 @@ mo_convert <- function(dat_unit_matched, metadata_convert) {
     fast_direct_idx <- which(!is.na(direct_meta_pos) & !is.na(unit_origin_vec))
     if (length(fast_direct_idx) > 0) {
       direct_attempt_done[fast_direct_idx] <- TRUE
-      dat[fast_direct_idx, n_conversion_attempts := n_conversion_attempts + 1L]
+      n_conversion_attempts[fast_direct_idx] <- n_conversion_attempts[fast_direct_idx] + 1L
       meta_rows <- simple_direct_meta[direct_meta_pos[fast_direct_idx]]
       val_conv_fast <- .mo_eval_vectorized_values(
         values = val_raw_vec[fast_direct_idx],
@@ -396,19 +308,17 @@ mo_convert <- function(dat_unit_matched, metadata_convert) {
       if (length(success_idx) > 0) {
         success_conv <- val_conv_fast[ok_fast]
         success_is_same_unit <- unit_origin_vec[success_idx] == target_vec[success_idx]
-        dat[success_idx, `:=`(
-          included = 1L,
-          value_converted = success_conv,
-          conversion = ifelse(success_is_same_unit, 0L, 1L),
-          rule_applied = ifelse(success_is_same_unit, 0L, 1L)
-        )]
+        included[success_idx] <- 1L
+        value_converted[success_idx] <- success_conv
+        conversion[success_idx] <- ifelse(success_is_same_unit, 0L, 1L)
+        rule_applied[success_idx] <- ifelse(success_is_same_unit, 0L, 1L)
       }
     }
 
     prefill_key_vec <- paste(meta_key_vec, row_unit_matched_vec, sep = "\r")
     prefill_meta_pos <- match(prefill_key_vec, simple_direct_meta$.direct_key)
     fast_prefill_idx <- which(
-      is.na(dat$included) &
+      is.na(included) &
         unit_missing_vec &
         !is.na(row_unit_matched_vec) &
         !is.na(prefill_meta_pos) &
@@ -417,7 +327,7 @@ mo_convert <- function(dat_unit_matched, metadata_convert) {
     if (length(fast_prefill_idx) > 0) {
       prefilled_attempt_done[fast_prefill_idx] <- TRUE
       prefilled_attempt_tried[fast_prefill_idx] <- 1L
-      dat[fast_prefill_idx, n_conversion_attempts := n_conversion_attempts + 1L]
+      n_conversion_attempts[fast_prefill_idx] <- n_conversion_attempts[fast_prefill_idx] + 1L
       meta_rows <- simple_direct_meta[prefill_meta_pos[fast_prefill_idx]]
       val_conv_fast <- .mo_eval_vectorized_values(
         values = val_raw_vec[fast_prefill_idx],
@@ -437,19 +347,16 @@ mo_convert <- function(dat_unit_matched, metadata_convert) {
           0L,
           ifelse(!is.na(success_meta_rows$next_attempt) & success_meta_rows$next_attempt > 0, as.integer(success_meta_rows$next_attempt), 1L)
         )
-        dat[success_idx, `:=`(
-          included = 1L,
-          value_converted = success_conv,
-          conversion = 3L,
-          rule_applied = rp
-        )]
+        included[success_idx] <- 1L
+        value_converted[success_idx] <- success_conv
+        conversion[success_idx] <- 3L
+        rule_applied[success_idx] <- rp
       }
     }
   }
 
-  pending_idx <- which(is.na(dat$included))
+  pending_idx <- which(is.na(included))
   for (i in pending_idx) {
-    cid <- cid_vec[i]
     target <- target_vec[i]
     val_raw <- val_raw_vec[i]
     unit_origin <- unit_origin_vec[i]
@@ -463,7 +370,25 @@ mo_convert <- function(dat_unit_matched, metadata_convert) {
     origin_other <- !is.na(unit_origin) && attempt_bundle$n > 0 && !(unit_origin %in% attempt_unit_matched)
 
     # 1) Try direct matches (unit_origin equals unit_matched)
-    if (!direct_attempt_done[i] && .mo_try_direct_matches(dat, i, attempt_bundle, attempt_unit_matched, unit_origin, target, val_raw)) next
+    if (!direct_attempt_done[i] && attempt_bundle$n > 0 && !is.na(unit_origin)) {
+      direct_idx <- which(attempt_unit_matched == unit_origin)
+      if (length(direct_idx) > 0) {
+        direct_success <- FALSE
+        for (r in direct_idx) {
+          n_conversion_attempts[i] <- n_conversion_attempts[i] + 1L
+          res <- .mo_eval_attempt_prepared(attempt_bundle, r, val_raw, i, var_cache)
+          if (isTRUE(res$success)) {
+            included[i] <- 1L
+            value_converted[i] <- res$val_conv
+            conversion[i] <- ifelse(is.na(unit_origin) || unit_origin == target, 0L, ifelse(unit_origin == target, 0L, 1L))
+            rule_applied[i] <- ifelse(is.na(unit_origin) || unit_origin == target, 0L, 1L)
+            direct_success <- TRUE
+            break
+          }
+        }
+        if (direct_success) next
+      }
+    }
 
     # If origin is 'OTHER' (present but not listed), treat it like MISSING for
     # conversion attempts (but use conversion=1 on success). Otherwise, for
@@ -473,12 +398,73 @@ mo_convert <- function(dat_unit_matched, metadata_convert) {
       row_unit_matched <- row_unit_matched_vec[i]
       pref_res <- list(success = FALSE, tried = prefilled_attempt_tried[i])
       if (!prefilled_attempt_done[i] && !is.na(row_unit_matched) && attempt_bundle$n > 0) {
-        pref_res <- .mo_try_prefilled_assumed(dat, i, attempt_bundle, attempt_unit_matched, row_unit_matched, val_raw, conv_success = 1L, other_flow = TRUE)
+        if (row_unit_matched %in% attempt_bundle$assumed_units) {
+          assumed_rows_idx <- which(attempt_unit_matched == row_unit_matched)
+          if (length(assumed_rows_idx) > 0) {
+            n_conversion_attempts[i] <- n_conversion_attempts[i] + 1L
+            assumed_idx_first <- assumed_rows_idx[1]
+            res <- .mo_eval_attempt_prepared(attempt_bundle, assumed_idx_first, val_raw, i, var_cache)
+            pref_res <- list(success = isTRUE(res$success), tried = 1L)
+            if (isTRUE(res$success)) {
+              codes <- .mo_success_codes(attempt_bundle, assumed_idx_first, conv_success = 1L, other_flow = TRUE)
+              included[i] <- 1L
+              value_converted[i] <- res$val_conv
+              conversion[i] <- codes$conversion
+              rule_applied[i] <- codes$rule_applied
+            }
+          }
+        }
         missing_attempts_tried <- missing_attempts_tried + pref_res$tried
         if (isTRUE(pref_res$success)) next
       }
       skip_assumed_unit <- if (prefilled_attempt_done[i] || pref_res$tried > 0L) row_unit_matched else NA_character_
-      miss_res <- .mo_try_missing_chain(dat, i, attempt_bundle, attempt_unit_matched, val_raw, conv_success = 1L, other_flow = TRUE, skip_assumed_unit = skip_assumed_unit)
+      miss_res <- list(success = FALSE, tried = 0L)
+      if (length(attempt_bundle$next_positive_idx) > 0) {
+        for (r in attempt_bundle$next_positive_idx) {
+          res <- .mo_eval_attempt_prepared(attempt_bundle, r, val_raw, i, var_cache)
+          if (isTRUE(res$attempted)) {
+            n_conversion_attempts[i] <- n_conversion_attempts[i] + 1L
+            miss_res$tried <- miss_res$tried + 1L
+          }
+          if (isTRUE(res$success)) {
+            codes <- .mo_success_codes(attempt_bundle, r, conv_success = 1L, other_flow = TRUE)
+            included[i] <- 1L
+            value_converted[i] <- res$val_conv
+            conversion[i] <- codes$conversion
+            rule_applied[i] <- codes$rule_applied
+            miss_res$success <- TRUE
+            break
+          }
+        }
+      }
+      if (!isTRUE(miss_res$success)) {
+        missing_idx <- attempt_bundle$missing_idx
+        if (!is.na(skip_assumed_unit) && length(missing_idx) > 0) {
+          missing_idx <- missing_idx[
+            is.na(attempt_bundle$next_attempt[missing_idx]) |
+              attempt_bundle$next_attempt[missing_idx] != 0 |
+              .mo_norm(attempt_bundle$assumed_unit_if_missing[missing_idx]) != skip_assumed_unit
+          ]
+        }
+        if (length(missing_idx) > 0) {
+          for (r in missing_idx) {
+            res <- .mo_eval_attempt_prepared(attempt_bundle, r, val_raw, i, var_cache)
+            if (isTRUE(res$attempted)) {
+              n_conversion_attempts[i] <- n_conversion_attempts[i] + 1L
+              miss_res$tried <- miss_res$tried + 1L
+            }
+            if (isTRUE(res$success)) {
+              codes <- .mo_success_codes(attempt_bundle, r, conv_success = 1L, other_flow = TRUE)
+              included[i] <- 1L
+              value_converted[i] <- res$val_conv
+              conversion[i] <- codes$conversion
+              rule_applied[i] <- codes$rule_applied
+              miss_res$success <- TRUE
+              break
+            }
+          }
+        }
+      }
       missing_attempts_tried <- missing_attempts_tried + miss_res$tried
       if (isTRUE(miss_res$success)) next
     } else {
@@ -486,7 +472,22 @@ mo_convert <- function(dat_unit_matched, metadata_convert) {
         row_unit_matched <- row_unit_matched_vec[i]
         pref_res <- list(success = FALSE, tried = prefilled_attempt_tried[i])
         if (!prefilled_attempt_done[i] && !is.na(row_unit_matched) && attempt_bundle$n > 0) {
-          pref_res <- .mo_try_prefilled_assumed(dat, i, attempt_bundle, attempt_unit_matched, row_unit_matched, val_raw, conv_success = 3L, other_flow = FALSE)
+          if (row_unit_matched %in% attempt_bundle$assumed_units) {
+            assumed_rows_idx <- which(attempt_unit_matched == row_unit_matched)
+            if (length(assumed_rows_idx) > 0) {
+              n_conversion_attempts[i] <- n_conversion_attempts[i] + 1L
+              assumed_idx_first <- assumed_rows_idx[1]
+              res <- .mo_eval_attempt_prepared(attempt_bundle, assumed_idx_first, val_raw, i, var_cache)
+              pref_res <- list(success = isTRUE(res$success), tried = 1L)
+              if (isTRUE(res$success)) {
+                codes <- .mo_success_codes(attempt_bundle, assumed_idx_first, conv_success = 3L, other_flow = FALSE)
+                included[i] <- 1L
+                value_converted[i] <- res$val_conv
+                conversion[i] <- codes$conversion
+                rule_applied[i] <- codes$rule_applied
+              }
+            }
+          }
           missing_attempts_tried <- missing_attempts_tried + pref_res$tried
           if (isTRUE(pref_res$success)) next
         }
@@ -494,7 +495,53 @@ mo_convert <- function(dat_unit_matched, metadata_convert) {
         # (i.e., prefill did not run, or there are chained attempts with next_attempt > 0 to pursue).
         if (attempt_bundle$n > 0 && (pref_res$tried == 0L || any(!is.na(attempt_bundle$next_attempt) & attempt_bundle$next_attempt > 0L))) {
           skip_assumed_unit <- if (prefilled_attempt_done[i] || pref_res$tried > 0L) row_unit_matched else NA_character_
-          miss_res <- .mo_try_missing_chain(dat, i, attempt_bundle, attempt_unit_matched, val_raw, conv_success = 3L, other_flow = FALSE, skip_assumed_unit = skip_assumed_unit)
+          miss_res <- list(success = FALSE, tried = 0L)
+          if (length(attempt_bundle$next_positive_idx) > 0) {
+            for (r in attempt_bundle$next_positive_idx) {
+              res <- .mo_eval_attempt_prepared(attempt_bundle, r, val_raw, i, var_cache)
+              if (isTRUE(res$attempted)) {
+                n_conversion_attempts[i] <- n_conversion_attempts[i] + 1L
+                miss_res$tried <- miss_res$tried + 1L
+              }
+              if (isTRUE(res$success)) {
+                codes <- .mo_success_codes(attempt_bundle, r, conv_success = 3L, other_flow = FALSE)
+                included[i] <- 1L
+                value_converted[i] <- res$val_conv
+                conversion[i] <- codes$conversion
+                rule_applied[i] <- codes$rule_applied
+                miss_res$success <- TRUE
+                break
+              }
+            }
+          }
+          if (!isTRUE(miss_res$success)) {
+            missing_idx <- attempt_bundle$missing_idx
+            if (!is.na(skip_assumed_unit) && length(missing_idx) > 0) {
+              missing_idx <- missing_idx[
+                is.na(attempt_bundle$next_attempt[missing_idx]) |
+                  attempt_bundle$next_attempt[missing_idx] != 0 |
+                  .mo_norm(attempt_bundle$assumed_unit_if_missing[missing_idx]) != skip_assumed_unit
+              ]
+            }
+            if (length(missing_idx) > 0) {
+              for (r in missing_idx) {
+                res <- .mo_eval_attempt_prepared(attempt_bundle, r, val_raw, i, var_cache)
+                if (isTRUE(res$attempted)) {
+                  n_conversion_attempts[i] <- n_conversion_attempts[i] + 1L
+                  miss_res$tried <- miss_res$tried + 1L
+                }
+                if (isTRUE(res$success)) {
+                  codes <- .mo_success_codes(attempt_bundle, r, conv_success = 3L, other_flow = FALSE)
+                  included[i] <- 1L
+                  value_converted[i] <- res$val_conv
+                  conversion[i] <- codes$conversion
+                  rule_applied[i] <- codes$rule_applied
+                  miss_res$success <- TRUE
+                  break
+                }
+              }
+            }
+          }
           missing_attempts_tried <- missing_attempts_tried + miss_res$tried
           if (isTRUE(miss_res$success)) next
         }
@@ -504,37 +551,86 @@ mo_convert <- function(dat_unit_matched, metadata_convert) {
     # 3) Fallback: try all attempts ordered by next_attempt (1,2,...) as fallbacks for conversion
     conv_success_current <- if (origin_other) 1L else if (unit_missing_flag) 3L else 1L
     other_flow_current <- origin_other
-    if (.mo_try_fallbacks(dat, i, attempt_bundle, val_raw, conv_success_current, other_flow_current)) next
+    fallback_success <- FALSE
+    if (attempt_bundle$n > 0 && length(attempt_bundle$fallback_idx_by_code) > 0) {
+      attempts_made <- 0L
+      for (rows_idx in attempt_bundle$fallback_idx_by_code) {
+        for (j in rows_idx) {
+          n_conversion_attempts[i] <- n_conversion_attempts[i] + 1L
+          res <- .mo_eval_attempt_prepared(attempt_bundle, j, val_raw, i, var_cache)
+          attempts_made <- attempts_made + 1L
+          if (isTRUE(res$success)) {
+            codes <- .mo_success_codes(
+              attempt_bundle,
+              j,
+              conv_success = conv_success_current,
+              other_flow = other_flow_current,
+              fallback_attempts_made = attempts_made
+            )
+            included[i] <- 1L
+            value_converted[i] <- res$val_conv
+            conversion[i] <- codes$conversion
+            rule_applied[i] <- codes$rule_applied
+            fallback_success <- TRUE
+            break
+          }
+        }
+        if (fallback_success) break
+      }
+    }
+    if (fallback_success) next
 
     # 4) If we get here, conversion failed or no applicable attempts
     # Decide conversion & rule codes per README semantics
     if (is.na(val_raw) || !is.numeric(val_raw)) {
-      dat[i, `:=`(included = 0L, value_converted = NA_real_, conversion = 3L, rule_applied = 99L)]
+      included[i] <- 0L
+      value_converted[i] <- NA_real_
+      conversion[i] <- 3L
+      rule_applied[i] <- 99L
     } else if (unit_missing_flag) {
       # Use only the missing-unit attempts count to decide 90/91/92
       attempts_made_final <- missing_attempts_tried
       rp_fail <- ifelse(is.na(attempts_made_final) || attempts_made_final == 0L, 90L, ifelse(attempts_made_final == 1L, 91L, 92L))
-      dat[i, `:=`(included = 0L, value_converted = NA_real_, conversion = 3L, rule_applied = rp_fail)]
+      included[i] <- 0L
+      value_converted[i] <- NA_real_
+      conversion[i] <- 3L
+      rule_applied[i] <- rp_fail
     } else if (!is.na(unit_origin) && attempt_bundle$n == 0) {
       # unit present but no conversion metadata -> treat as OTHER
-      dat[i, `:=`(included = 1L, value_converted = val_raw, conversion = 2L, rule_applied = 0L)]
+      included[i] <- 1L
+      value_converted[i] <- val_raw
+      conversion[i] <- 2L
+      rule_applied[i] <- 0L
     } else if (!is.na(unit_origin) && !is.na(target) && unit_origin != target) {
       # Tried conversions but none accepted
       # If no conversion attempts were actually made for this row, treat as OTHER accepted-as-is
-      attempts_made <- dat$n_conversion_attempts[i]
+      attempts_made <- n_conversion_attempts[i]
       if (is.na(attempts_made) || attempts_made == 0L) {
-        dat[i, `:=`(included = 1L, value_converted = val_raw, conversion = 2L, rule_applied = 0L)]
+        included[i] <- 1L
+        value_converted[i] <- val_raw
+        conversion[i] <- 2L
+        rule_applied[i] <- 0L
       } else {
         # Use actual number of attempts made on this row to determine rule_applied (91 if one try, 92 if multiple)
         final_conv <- if (origin_other) 2L else 1L
-        dat[i, `:=`(included = 0L, value_converted = NA_real_, conversion = final_conv, rule_applied = ifelse(attempts_made <= 1L, 91L, 92L))]
+        included[i] <- 0L
+        value_converted[i] <- NA_real_
+        conversion[i] <- final_conv
+        rule_applied[i] <- ifelse(attempts_made <= 1L, 91L, 92L)
       }
     } else {
-      dat[i, `:=`(included = 0L, value_converted = NA_real_, conversion = 0L, rule_applied = 90L)]
+      included[i] <- 0L
+      value_converted[i] <- NA_real_
+      conversion[i] <- 0L
+      rule_applied[i] <- 90L
     }
   }
 
-  # Clean helper columns
-  dat[, n_conversion_attempts := NULL]
+  dat[, `:=`(
+    included = included,
+    value_converted = value_converted,
+    conversion = conversion,
+    rule_applied = rule_applied
+  )]
   return(dat)
 }
