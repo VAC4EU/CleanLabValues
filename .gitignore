@@ -3,4 +3,5 @@
 .RData
 .Ruserdata
 # ignore agent output files generated during testing
-tests/data/**/_agent_output.csv
+tests/data/**/g_output/**
+.DS_Store

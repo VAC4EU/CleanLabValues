@@ -315,7 +315,7 @@ check_lab_thresholds <- function(lab_thresholds, dataset) {
   }
   
   for (varname in c("Min", "Max")) {
-    vec_ <- dataset[[varname]]
+    vec_ <- dt[[varname]]
     is_num_ <- suppressWarnings(as.numeric(vec_))
     invalid_ <- is.na(is_num_)
     num_nonnumeric <- sum(invalid_)
