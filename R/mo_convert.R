@@ -70,13 +70,13 @@ NULL
 # Small, top-level helpers to keep `mo_convert()` concise. They operate by
 # modifying `dat` by reference (using `i`) and return success flags and
 # attempt counts where appropriate.
-.mo_try_direct_matches <- function(dat, i, attempts, unit_origin, target, val_raw) {
+.mo_try_direct_matches <- function(dat, i, attempts, attempt_unit_matched, unit_origin, target, val_raw) {
   if (nrow(attempts) > 0 && !is.na(unit_origin)) {
-    direct <- attempts[unit_matched == unit_origin]
-    if (nrow(direct) > 0) {
-      for (r in seq_len(nrow(direct))) {
+    direct_idx <- which(attempt_unit_matched == unit_origin)
+    if (length(direct_idx) > 0) {
+      for (r in direct_idx) {
         dat[i, n_conversion_attempts := n_conversion_attempts + 1L]
-        res <- .mo_eval_attempt(direct[r], val_raw, dat, i)
+        res <- .mo_eval_attempt(attempts[r], val_raw, dat, i)
         if (isTRUE(res$success)) {
           dat[i, `:=`(
             included = 1L,
@@ -92,27 +92,29 @@ NULL
   FALSE
 }
 
-.mo_try_prefilled_assumed <- function(dat, i, attempts, row_unit_matched, val_raw, conv_success = 3L, other_flow = FALSE) {
+.mo_try_prefilled_assumed <- function(dat, i, attempts, attempt_unit_matched, row_unit_matched, val_raw, conv_success = 3L, other_flow = FALSE) {
   # Returns list(success=TRUE/FALSE, tried=0/1)
   if (is.na(row_unit_matched) || nrow(attempts) == 0) {
     return(list(success = FALSE, tried = 0L))
   }
-  assumed_list <- unique(na.omit(tolower(trimws(as.character(attempts[unit_matched == "missing" & (is.na(condition_on_value) | condition_on_value == "")]$assumed_unit_if_missing)))))
+  assumed_idx <- which(attempt_unit_matched == "missing" & (is.na(attempts$condition_on_value) | attempts$condition_on_value == ""))
+  assumed_list <- unique(na.omit(tolower(trimws(as.character(attempts$assumed_unit_if_missing[assumed_idx])))))
   if (!(row_unit_matched %in% assumed_list)) {
     return(list(success = FALSE, tried = 0L))
   }
-  assumed_rows <- attempts[unit_matched == row_unit_matched]
-  if (nrow(assumed_rows) == 0) {
+  assumed_rows_idx <- which(attempt_unit_matched == row_unit_matched)
+  if (length(assumed_rows_idx) == 0) {
     return(list(success = FALSE, tried = 0L))
   }
   dat[i, n_conversion_attempts := n_conversion_attempts + 1L]
-  res <- .mo_eval_attempt(assumed_rows[1], val_raw, dat, i)
+  assumed_row <- attempts[assumed_rows_idx[1]]
+  res <- .mo_eval_attempt(assumed_row, val_raw, dat, i)
   if (isTRUE(res$success)) {
-    factor_try <- suppressWarnings(as.numeric(assumed_rows[1]$multiplication_factor_from_origin_to_target))
+    factor_try <- suppressWarnings(as.numeric(assumed_row$multiplication_factor_from_origin_to_target))
     if (!is.na(factor_try) && factor_try == 1) {
       rp <- 0L
     } else {
-      rp <- if (!is.na(assumed_rows[1]$next_attempt) && assumed_rows[1]$next_attempt > 0) as.integer(assumed_rows[1]$next_attempt) else 1L
+      rp <- if (!is.na(assumed_row$next_attempt) && assumed_row$next_attempt > 0) as.integer(assumed_row$next_attempt) else 1L
     }
     conv_code <- conv_success
     if (!is.na(factor_try) && factor_try == 1 && conv_success == 1L && isTRUE(other_flow)) conv_code <- 2L
@@ -122,14 +124,15 @@ NULL
   list(success = FALSE, tried = 1L)
 }
 
-.mo_try_missing_chain <- function(dat, i, attempts, val_raw, conv_success = 3L, other_flow = FALSE, skip_assumed_unit = NA_character_) {
+.mo_try_missing_chain <- function(dat, i, attempts, attempt_unit_matched, val_raw, conv_success = 3L, other_flow = FALSE, skip_assumed_unit = NA_character_) {
   # Returns list(success=TRUE/FALSE, tried=number_of_attempts_tried)
   tried <- 0L
   # explicit next_attempt chain (>0)
-  miss_attempts <- attempts[!is.na(next_attempt) & next_attempt > 0][order(next_attempt)]
-  if (nrow(miss_attempts) > 0) {
-    for (r in seq_len(nrow(miss_attempts))) {
-      attempt_row <- miss_attempts[r]
+  miss_attempts_idx <- which(!is.na(attempts$next_attempt) & attempts$next_attempt > 0)
+  if (length(miss_attempts_idx) > 0) {
+    miss_attempts_idx <- miss_attempts_idx[order(attempts$next_attempt[miss_attempts_idx])]
+    for (r in miss_attempts_idx) {
+      attempt_row <- attempts[r]
       res <- .mo_eval_attempt(attempt_row, val_raw, dat, i)
       if (isTRUE(res$attempted)) {
         dat[i, n_conversion_attempts := n_conversion_attempts + 1L]
@@ -150,17 +153,17 @@ NULL
     }
   }
   # rows labelled as missing
-  missing_rows <- attempts[unit_matched == "missing"]
-  if (!is.na(skip_assumed_unit) && nrow(missing_rows) > 0 && "assumed_unit_if_missing" %in% names(missing_rows)) {
-    missing_rows <- missing_rows[
-      is.na(next_attempt) |
-        next_attempt != 0 |
-        .mo_norm(assumed_unit_if_missing) != skip_assumed_unit
+  missing_idx <- which(attempt_unit_matched == "missing")
+  if (!is.na(skip_assumed_unit) && length(missing_idx) > 0 && "assumed_unit_if_missing" %in% names(attempts)) {
+    missing_idx <- missing_idx[
+      is.na(attempts$next_attempt[missing_idx]) |
+        attempts$next_attempt[missing_idx] != 0 |
+        .mo_norm(attempts$assumed_unit_if_missing[missing_idx]) != skip_assumed_unit
     ]
   }
-  if (nrow(missing_rows) > 0) {
-    for (r in seq_len(nrow(missing_rows))) {
-      attempt_row <- missing_rows[r]
+  if (length(missing_idx) > 0) {
+    for (r in missing_idx) {
+      attempt_row <- attempts[r]
       res <- .mo_eval_attempt(attempt_row, val_raw, dat, i)
       if (isTRUE(res$attempted)) {
         dat[i, n_conversion_attempts := n_conversion_attempts + 1L]
@@ -234,6 +237,32 @@ mo_convert <- function(dat_unit_matched, metadata_convert) {
   if (!"next_attempt" %in% names(meta)) meta[, next_attempt := NA_integer_]
   if (!"Min" %in% names(meta)) meta[, Min := NA_real_]
   if (!"Max" %in% names(meta)) meta[, Max := NA_real_]
+  if (!"conversion_not_multiplication" %in% names(meta)) meta[, conversion_not_multiplication := NA_character_]
+  if (!"condition_on_value" %in% names(meta)) meta[, condition_on_value := NA_character_]
+  if (!"condition_on_variable" %in% names(meta)) meta[, condition_on_variable := NA_character_]
+  meta[, unit_matched := ifelse(is.na(unit_matched) | unit_matched == "", NA_character_, .mo_norm(unit_matched))]
+  meta[, .meta_key := paste(concept_id, unit_target, sep = "\r")]
+  meta_by_key <- split(meta, by = ".meta_key", keep.by = FALSE, sorted = FALSE)
+  empty_attempts <- meta[0]
+  simple_direct_meta <- meta[
+    !is.na(unit_matched) &
+      unit_matched != "missing" &
+      (is.na(conversion_not_multiplication) | conversion_not_multiplication == "") &
+      (is.na(condition_on_value) | condition_on_value == "") &
+      (is.na(condition_on_variable) | condition_on_variable == "")
+  ]
+  if (nrow(simple_direct_meta) > 0) {
+    simple_direct_meta[, factor_num := suppressWarnings(as.numeric(multiplication_factor_from_origin_to_target))]
+    simple_direct_meta <- simple_direct_meta[
+      !is.na(factor_num) &
+        !is.na(Min) &
+        !is.na(Max)
+    ]
+    if (nrow(simple_direct_meta) > 0) {
+      simple_direct_meta[, .direct_key := paste(.meta_key, unit_matched, sep = "\r")]
+      simple_direct_meta <- simple_direct_meta[, if (.N == 1L) .SD, by = .direct_key]
+    }
+  }
 
   # Use internal helpers
 
@@ -247,48 +276,90 @@ mo_convert <- function(dat_unit_matched, metadata_convert) {
 
   # local alias helpers for readability
   norm <- .mo_norm
+  cid_vec <- dat$concept_id
+  target_vec <- dat$unit_target
+  val_raw_vec <- suppressWarnings(as.numeric(dat$value))
+  unit_origin_vec <- ifelse(is.na(dat$unit_origin) | dat$unit_origin == "", NA_character_, norm(dat$unit_origin))
+  unit_missing_vec <- if ("unit_missing" %in% names(dat)) {
+    !is.na(dat$unit_missing) & dat$unit_missing
+  } else {
+    is.na(unit_origin_vec)
+  }
+  row_unit_matched_vec <- if ("unit_matched" %in% names(dat)) {
+    ifelse(is.na(dat$unit_matched) | dat$unit_matched == "", NA_character_, norm(dat$unit_matched))
+  } else {
+    rep(NA_character_, nrow(dat))
+  }
+  meta_key_vec <- paste(cid_vec, target_vec, sep = "\r")
+  direct_attempt_done <- rep(FALSE, nrow(dat))
+
+  if (exists("simple_direct_meta") && nrow(simple_direct_meta) > 0) {
+    direct_key_vec <- paste(meta_key_vec, unit_origin_vec, sep = "\r")
+    direct_meta_pos <- match(direct_key_vec, simple_direct_meta$.direct_key)
+    fast_direct_idx <- which(!is.na(direct_meta_pos) & !is.na(unit_origin_vec))
+    if (length(fast_direct_idx) > 0) {
+      direct_attempt_done[fast_direct_idx] <- TRUE
+      dat[fast_direct_idx, n_conversion_attempts := n_conversion_attempts + 1L]
+      meta_rows <- simple_direct_meta[direct_meta_pos[fast_direct_idx]]
+      val_conv_fast <- val_raw_vec[fast_direct_idx] * meta_rows$factor_num
+      ok_fast <- !is.na(val_conv_fast) &
+        val_conv_fast >= meta_rows$Min &
+        val_conv_fast <= meta_rows$Max
+      success_idx <- fast_direct_idx[ok_fast]
+      if (length(success_idx) > 0) {
+        success_conv <- val_conv_fast[ok_fast]
+        success_is_same_unit <- unit_origin_vec[success_idx] == target_vec[success_idx]
+        dat[success_idx, `:=`(
+          included = 1L,
+          value_converted = success_conv,
+          conversion = ifelse(success_is_same_unit, 0L, 1L),
+          rule_applied = ifelse(success_is_same_unit, 0L, 1L)
+        )]
+      }
+    }
+  }
 
   for (i in seq_len(nrow(dat))) {
-    row <- dat[i]
-    cid <- row$concept_id
-    target <- row$unit_target
-    val_raw <- suppressWarnings(as.numeric(row$value))
-    unit_origin <- ifelse(is.na(row$unit_origin) || row$unit_origin == "", NA_character_, norm(row$unit_origin))
-    unit_missing_flag <- if ("unit_missing" %in% names(dat)) isTRUE(row$unit_missing) else is.na(unit_origin)
+    if (!is.na(dat$included[i])) next
 
-    attempts <- meta[concept_id == cid & unit_target == target]
-    if (nrow(attempts) > 0) attempts[, unit_matched := norm(ifelse(is.na(unit_matched) | unit_matched == "", unit_origin, unit_matched))]
+    cid <- cid_vec[i]
+    target <- target_vec[i]
+    val_raw <- val_raw_vec[i]
+    unit_origin <- unit_origin_vec[i]
+    unit_missing_flag <- unit_missing_vec[i]
+
+    attempts <- meta_by_key[[meta_key_vec[i]]]
+    if (is.null(attempts)) attempts <- empty_attempts
+    attempt_unit_matched <- if (nrow(attempts) > 0) ifelse(is.na(attempts$unit_matched), unit_origin, attempts$unit_matched) else character(0)
 
     # Identify 'OTHER' origin: unit present but not listed among attempts
-    origin_other <- !is.na(unit_origin) && nrow(attempts) > 0 && !(unit_origin %in% attempts$unit_matched)
+    origin_other <- !is.na(unit_origin) && nrow(attempts) > 0 && !(unit_origin %in% attempt_unit_matched)
 
     # 1) Try direct matches (unit_origin equals unit_matched)
-    if (.mo_try_direct_matches(dat, i, attempts, unit_origin, target, val_raw)) next
+    if (!direct_attempt_done[i] && .mo_try_direct_matches(dat, i, attempts, attempt_unit_matched, unit_origin, target, val_raw)) next
 
     # If origin is 'OTHER' (present but not listed), treat it like MISSING for
     # conversion attempts (but use conversion=1 on success). Otherwise, for
     # genuinely missing units use conversion=3 on success.
     missing_attempts_tried <- 0L
     if (origin_other) {
-      row_unit_matched <- NA_character_
+      row_unit_matched <- row_unit_matched_vec[i]
       pref_res <- list(success = FALSE, tried = 0L)
-      if ("unit_matched" %in% names(dat)) row_unit_matched <- ifelse(is.na(dat$unit_matched[i]) || dat$unit_matched[i] == "", NA_character_, norm(dat$unit_matched[i]))
       if (!is.na(row_unit_matched) && nrow(attempts) > 0) {
-        pref_res <- .mo_try_prefilled_assumed(dat, i, attempts, row_unit_matched, val_raw, conv_success = 1L, other_flow = TRUE)
+        pref_res <- .mo_try_prefilled_assumed(dat, i, attempts, attempt_unit_matched, row_unit_matched, val_raw, conv_success = 1L, other_flow = TRUE)
         missing_attempts_tried <- missing_attempts_tried + pref_res$tried
         if (isTRUE(pref_res$success)) next
       }
       skip_assumed_unit <- if (pref_res$tried > 0L) row_unit_matched else NA_character_
-      miss_res <- .mo_try_missing_chain(dat, i, attempts, val_raw, conv_success = 1L, other_flow = TRUE, skip_assumed_unit = skip_assumed_unit)
+      miss_res <- .mo_try_missing_chain(dat, i, attempts, attempt_unit_matched, val_raw, conv_success = 1L, other_flow = TRUE, skip_assumed_unit = skip_assumed_unit)
       missing_attempts_tried <- missing_attempts_tried + miss_res$tried
       if (isTRUE(miss_res$success)) next
     } else {
       if (unit_missing_flag) {
-        row_unit_matched <- NA_character_
-        if ("unit_matched" %in% names(dat)) row_unit_matched <- ifelse(is.na(dat$unit_matched[i]) || dat$unit_matched[i] == "", NA_character_, norm(dat$unit_matched[i]))
+        row_unit_matched <- row_unit_matched_vec[i]
         pref_res <- list(success = FALSE, tried = 0L)
         if (!is.na(row_unit_matched) && nrow(attempts) > 0) {
-          pref_res <- .mo_try_prefilled_assumed(dat, i, attempts, row_unit_matched, val_raw, conv_success = 3L, other_flow = FALSE)
+          pref_res <- .mo_try_prefilled_assumed(dat, i, attempts, attempt_unit_matched, row_unit_matched, val_raw, conv_success = 3L, other_flow = FALSE)
           missing_attempts_tried <- missing_attempts_tried + pref_res$tried
           if (isTRUE(pref_res$success)) next
         }
@@ -296,7 +367,7 @@ mo_convert <- function(dat_unit_matched, metadata_convert) {
         # (i.e., prefill did not run, or there are chained attempts with next_attempt > 0 to pursue).
         if (nrow(attempts) > 0 && (pref_res$tried == 0L || nrow(attempts[!is.na(next_attempt) & next_attempt > 0L]) > 0L)) {
           skip_assumed_unit <- if (pref_res$tried > 0L) row_unit_matched else NA_character_
-          miss_res <- .mo_try_missing_chain(dat, i, attempts, val_raw, conv_success = 3L, other_flow = FALSE, skip_assumed_unit = skip_assumed_unit)
+          miss_res <- .mo_try_missing_chain(dat, i, attempts, attempt_unit_matched, val_raw, conv_success = 3L, other_flow = FALSE, skip_assumed_unit = skip_assumed_unit)
           missing_attempts_tried <- missing_attempts_tried + miss_res$tried
           if (isTRUE(miss_res$success)) next
         }
