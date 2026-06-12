@@ -64,6 +64,7 @@ clean_lab_main <- function(dataset, list_analyses = c(), lab_target_units, lab_u
     meta_cid <- meta_unit_conv[concept_id == cid]
     target_unit_cid <- target_unit[[cid]]
     if (nrow(dt_cid) == 0) next
+    logger::log_info(paste0("[CleanLabValues] Processing concept_id ", cid, " with ", nrow(dt_cid), " row(s)."))
     # Step 2: Prepare unit_matched (unit_filled if present, else unit)
     dt_cid[, unit_matched := unit_filled]
     dt_cid[is.na(unit_matched) | unit_matched == "", unit_matched := target_unit_cid]
@@ -132,6 +133,7 @@ clean_lab_main <- function(dataset, list_analyses = c(), lab_target_units, lab_u
     out_cols <- c(intersect(input_out_cols, names(dt_cid)), result_cols, ".order_id")
     out <- dt_cid[, ..out_cols]
     result_list[[cid]] <- out
+    logger::log_info(paste0("[CleanLabValues] Completed concept_id ", cid, "."))
   }
   result <- data.table::rbindlist(result_list, fill = TRUE)
   # restore original ordering and remove temporary order column (drop explicitly)

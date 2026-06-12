@@ -60,7 +60,7 @@ check_dataset_model <- function(dataset) {
   #     stop(paste("The file 'dataset' has", num_nonnumeric,"record(s) where the variable ", varname," contains a non-numeric value."))
   #   }
   # }
-  message("[CleanLabValues] Dataset model check passed successfully.")
+  logger::log_info("[CleanLabValues] Dataset model check passed successfully.")
 }
 
 #######################################################
@@ -83,7 +83,7 @@ check_lab_target_units <- function(lab_target_units) {
   if (!all(c("concept_id", "unit_target") %in% names(dt))) {
     stop(paste("The file", lab_target_units, "should be a csv file with data model concept_id,unit_target"))
   }
-  message("[CleanLabValues] LAB_target_units check passed successfully.")
+  logger::log_info("[CleanLabValues] LAB_target_units check passed successfully.")
   invisible(dt)
 }
 
@@ -284,7 +284,7 @@ check_lab_unit_conversion <- function(lab_unit_conversion, datasource, list_anal
       }
     }
   }
-  message("[CleanLabValues] LAB_unit_conversion check passed successfully.")
+  logger::log_info("[CleanLabValues] LAB_unit_conversion check passed successfully.")
   invisible(dt)
 }
 
@@ -325,6 +325,6 @@ check_lab_thresholds <- function(lab_thresholds, dataset) {
 
 
 
-  message("[CleanLabValues] LAB_thresholds check passed successfully.")
+  logger::log_info("[CleanLabValues] LAB_thresholds check passed successfully.")
   invisible(dt)
 }
