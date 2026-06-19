@@ -3,4 +3,5 @@
 #'
 #' @keywords internal
 #' @import data.table
+#' @import logger
 "_PACKAGE"

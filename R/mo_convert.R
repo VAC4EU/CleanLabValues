@@ -5,6 +5,7 @@
 #'
 #' These functions are internal to the package and are not exported.
 #'
+#' @name mo_convert_helpers
 #' @keywords internal
 NULL
 .mo_norm <- function(x) tolower(trimws(as.character(x)))
