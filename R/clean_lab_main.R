@@ -56,30 +56,42 @@ clean_lab_main <- function(dataset, list_analyses = c(), lab_target_units, lab_u
   # Step 1: Fill missing units
   dt <- fill_missing_unit(dt, meta_unit_conv, target_unit)
 
+  dt_cols <- names(dt)
+  dt_by_cid <- split(dt, by = "concept_id", keep.by = TRUE, sorted = FALSE)
+  meta_by_cid <- split(meta_unit_conv, by = "concept_id", keep.by = TRUE, sorted = FALSE)
+  thresholds_by_cid <- split(meta_thresholds, by = "concept_id", keep.by = TRUE, sorted = FALSE)
+  empty_meta_cid <- meta_unit_conv[0]
+  empty_thresholds_cid <- meta_thresholds[0]
+  input_out_cols <- input_cols
+  if ("value" %in% input_out_cols) input_out_cols[input_out_cols == "value"] <- "value_origin"
+  if ("unit" %in% input_out_cols) input_out_cols[input_out_cols == "unit"] <- "unit_origin"
+
   # Prepare result list
   result_list <- list()
-  for (cid in unique(dt$concept_id)) {
+  for (cid in names(dt_by_cid)) {
     # Preserve all columns from the original input for thresholding (e.g., age)
-    dt_cid <- dt[concept_id == cid, .SD, .SDcols = names(dt)]
-    meta_cid <- meta_unit_conv[concept_id == cid]
+    dt_cid <- dt_by_cid[[cid]]
+    meta_cid <- meta_by_cid[[cid]]
+    if (is.null(meta_cid)) meta_cid <- empty_meta_cid
     target_unit_cid <- target_unit[[cid]]
     if (nrow(dt_cid) == 0) next
+    logger::log_info(paste0("[CleanLabValues] Processing concept_id ", cid, " with ", nrow(dt_cid), " row(s)."))
     # Step 2: Prepare unit_matched (unit_filled if present, else unit)
     dt_cid[, unit_matched := unit_filled]
     dt_cid[is.na(unit_matched) | unit_matched == "", unit_matched := target_unit_cid]
     dt_cid[, unit_target := target_unit_cid]
     # Mark rows with missing original unit
     dt_cid[, unit_missing := is.na(unit_origin) | unit_origin == ""]
-    # For missing unit, set unit_matched to assumed_unit_if_missing from metadata (per-row, not just first)
+    # For missing unit, set unit_matched to assumed_unit_if_missing when metadata provides one.
     if ("assumed_unit_if_missing" %in% names(meta_cid)) {
-      idx_missing <- which(dt_cid$unit_missing)
-      if (length(idx_missing) > 0) {
-        for (j in idx_missing) {
-          assumed_unit <- meta_cid[unit_target == dt_cid$unit_target[j] & !is.na(assumed_unit_if_missing) & assumed_unit_if_missing != "", assumed_unit_if_missing][1]
-          if (!is.na(assumed_unit) && assumed_unit != "") {
-            dt_cid$unit_matched[j] <- assumed_unit
-          }
-        }
+      assumed_unit <- meta_cid[
+        unit_target == target_unit_cid &
+          !is.na(assumed_unit_if_missing) &
+          assumed_unit_if_missing != "",
+        assumed_unit_if_missing[1]
+      ]
+      if (length(assumed_unit) > 0 && !is.na(assumed_unit) && assumed_unit != "") {
+        dt_cid[unit_missing == TRUE, unit_matched := assumed_unit]
       }
     }
 
@@ -97,8 +109,9 @@ clean_lab_main <- function(dataset, list_analyses = c(), lab_target_units, lab_u
     # Always ensure direct match row (unit_matched == unit_target, factor 1, next_attempt from existing rows) is present and first
     # Use the first available next_attempt for this concept_id and unit_target, or 0 if none
     direct_next_attempt <- 0
-    if (nrow(meta_cid[unit_target == target_unit_cid & !is.na(next_attempt)]) > 0) {
-      direct_next_attempt <- meta_cid[unit_target == target_unit_cid & !is.na(next_attempt)][[1, "next_attempt"]]
+    next_attempt_rows <- meta_cid[unit_target == target_unit_cid & !is.na(next_attempt)]
+    if (nrow(next_attempt_rows) > 0) {
+      direct_next_attempt <- next_attempt_rows[[1, "next_attempt"]]
     }
     direct_row <- data.table::data.table(
       concept_id = cid,
@@ -109,7 +122,8 @@ clean_lab_main <- function(dataset, list_analyses = c(), lab_target_units, lab_u
     )
     meta_cid_full <- rbind(direct_row, meta_cid_full, fill = TRUE)
     # Join thresholds on concept_id and unit_target only
-    meta_thresholds_cid <- meta_thresholds[concept_id == cid]
+    meta_thresholds_cid <- thresholds_by_cid[[cid]]
+    if (is.null(meta_thresholds_cid)) meta_thresholds_cid <- empty_thresholds_cid
     meta_cid_full <- merge(meta_cid_full, meta_thresholds_cid, by = c("concept_id", "unit_target"), all.x = TRUE)
     # For compatibility with mo_convert, rename unit_origin to unit_matched
     setnames(meta_cid_full, "unit_origin", "unit_matched", skip_absent = TRUE)
@@ -125,13 +139,10 @@ clean_lab_main <- function(dataset, list_analyses = c(), lab_target_units, lab_u
     # but expose the original measurement as `value_origin`/`unit_origin` (these are created above),
     # then append the cleaning result columns.
     result_cols <- c("included", "value", "unit_target", "conversion", "rule_applied")
-    # map input column names to output names: original `value` -> `value_origin`, `unit` -> `unit_origin`
-    input_out_cols <- input_cols
-    if ("value" %in% input_out_cols) input_out_cols[input_out_cols == "value"] <- "value_origin"
-    if ("unit" %in% input_out_cols) input_out_cols[input_out_cols == "unit"] <- "unit_origin"
     out_cols <- c(intersect(input_out_cols, names(dt_cid)), result_cols, ".order_id")
     out <- dt_cid[, ..out_cols]
     result_list[[cid]] <- out
+    logger::log_info(paste0("[CleanLabValues] Completed concept_id ", cid, "."))
   }
   result <- data.table::rbindlist(result_list, fill = TRUE)
   # restore original ordering and remove temporary order column (drop explicitly)

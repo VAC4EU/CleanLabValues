@@ -4,7 +4,7 @@ library(testthat)
 
 base_path <- function(...) test_path("data", ...)
 
-run_example <- function(ex) {
+run_example <- function(ex, datasource = "") {
   input_dir <- base_path(ex, "i_input")
   gt_dir <- base_path(ex, "i_ground_truth")
 
@@ -17,7 +17,8 @@ run_example <- function(ex) {
     dataset = dataset,
     lab_target_units = path_target_units,
     lab_unit_conversion = path_unit_conversion,
-    lab_thresholds = path_thresholds
+    lab_thresholds = path_thresholds,
+    datasource = datasource
   )
 
   gt <- fread(file.path(gt_dir, "dataset_cleaned_lab_values.csv"))
@@ -27,8 +28,14 @@ run_example <- function(ex) {
 
   all.equal(cleaned, gt, check.attributes = FALSE)
 }
-for (i in 1:4) {
-  test_that(paste("Example", i, "matches ground truth"), {
-    expect_true(isTRUE(run_example(paste("Example", i))))
+
+example_cases <- data.table(
+  example = paste("Example", 1:6),
+  datasource = c("", "", "", "", "DS_A", "")
+)
+
+for (case_idx in seq_len(nrow(example_cases))) {
+  test_that(paste(example_cases$example[case_idx], "matches ground truth"), {
+    expect_true(isTRUE(run_example(example_cases$example[case_idx], example_cases$datasource[case_idx])))
   })
 }

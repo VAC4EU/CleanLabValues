@@ -6,5 +6,6 @@
 ##' exported via the `NAMESPACE` and loaded automatically. Keep this file
 ##' as a documentation placeholder only.
 ##'
+##' @name load_dependencies
 ##' @keywords internal
 NULL

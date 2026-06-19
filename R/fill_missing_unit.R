@@ -18,9 +18,14 @@ fill_missing_unit <- function(dt, meta_unit_conv, target_unit, concept_id_col = 
   for (cid in unique(dt[[concept_id_col]])) {
     assumed_unit <- meta_unit_conv[concept_id == cid & unit_origin == "MISSING" & is.na(condition_on_value), assumed_unit_if_missing]
     idx <- which(dt[[concept_id_col]] == cid & (dt[[unit_col]] == "" | is.na(dt[[unit_col]])))
+    if (length(idx) == 0) {
+      next
+    }
     if (length(assumed_unit) > 0 && !is.na(assumed_unit[1])) {
+      logger::log_info(paste0("[CleanLabValues] Filling missing units for concept_id ", cid, " using assumed unit '", assumed_unit[1], "' on ", length(idx), " row(s)."))
       dt[idx, unit_filled := assumed_unit[1]]
     } else {
+      logger::log_info(paste0("[CleanLabValues] Filling missing units for concept_id ", cid, " using target unit '", target_unit[[cid]], "' on ", length(idx), " row(s)."))
       dt[idx, unit_filled := target_unit[[cid]]]
     }
   }

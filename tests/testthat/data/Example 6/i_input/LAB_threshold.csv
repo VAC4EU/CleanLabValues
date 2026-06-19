@@ -1,0 +1,2 @@
+concept_id,Min,Max,unit_target,condition_on_variable,variable
+LAB_TEST,0,100,mg,age >= 18,age
