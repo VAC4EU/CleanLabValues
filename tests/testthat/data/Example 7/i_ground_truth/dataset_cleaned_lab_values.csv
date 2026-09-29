@@ -1,0 +1,2 @@
+person_id,concept_id,value_origin,unit_origin,included,value,unit_target,conversion,rule_applied
+P01,HEIGHT,200,,0,,m,3,90
