@@ -1,9 +1,9 @@
 Package: CleanLabValues
 Title: Clean and Convert Laboratory Values
-Version: 0.2.0
+Version: 0.2.1
 Authors@R:
     c(person("Rosa", "Gini", role = "aut"),
-      person("Yinan", "Mao", role = c("aut", "cre"), email = "ymao@example.com"))
+      person("Yinan", "Mao", role = c("aut", "cre"), email = "yinan.mao.ds@gmail.com"))
 Description: Ingests instructions to clean datasets containing results from
     laboratory analyses. Handles unit conversions, missing-unit imputation, and
     exclusion of physiologically implausible values based on configurable

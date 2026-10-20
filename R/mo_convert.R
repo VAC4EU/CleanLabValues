@@ -365,6 +365,20 @@ mo_convert <- function(dat_unit_matched, metadata_convert) {
 
     attempt_bundle <- meta_bundle_by_key[[meta_key_vec[i]]]
     if (is.null(attempt_bundle)) attempt_bundle <- empty_attempt_bundle
+
+    # A missing source unit may only be converted when metadata explicitly
+    # defines a missing-unit rule. Do not infer the unit from fallback rules.
+    if (
+      unit_missing_flag &&
+      !is.na(val_raw) &&
+      length(attempt_bundle$missing_idx) == 0L
+    ) {
+      included[i] <- 0L
+      value_converted[i] <- NA_real_
+      conversion[i] <- 3L
+      rule_applied[i] <- 90L
+      next
+    }
     attempt_unit_matched <- if (attempt_bundle$n > 0) ifelse(is.na(attempt_bundle$unit_matched), unit_origin, attempt_bundle$unit_matched) else character(0)
 
     # Identify 'OTHER' origin: unit present but not listed among attempts

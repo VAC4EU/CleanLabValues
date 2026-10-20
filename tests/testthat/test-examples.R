@@ -22,7 +22,7 @@ run_example <- function(ex, datasource = "") {
   )
 
   gt <- fread(file.path(gt_dir, "dataset_cleaned_lab_values.csv"))
-
+  gt[, value := as.numeric(value)]
   setorder(cleaned, person_id, concept_id)
   setorder(gt, person_id, concept_id)
 
@@ -30,12 +30,14 @@ run_example <- function(ex, datasource = "") {
 }
 
 example_cases <- data.table(
-  example = paste("Example", 1:6),
-  datasource = c("", "", "", "", "DS_A", "")
+  example = paste("Example", 1:7),
+  datasource = c("", "", "", "", "DS_A", "", "")
 )
 
 for (case_idx in seq_len(nrow(example_cases))) {
   test_that(paste(example_cases$example[case_idx], "matches ground truth"), {
-    expect_true(isTRUE(run_example(example_cases$example[case_idx], example_cases$datasource[case_idx])))
+    expect_true(isTRUE(run_example(
+      ex = example_cases$example[case_idx],
+      datasource = example_cases$datasource[case_idx])))
   })
 }
